@@ -1,0 +1,29 @@
+{
+  "skill_name": "prizmkit-workflow",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "在当前项目里实现一个用户头像上传功能。请用 PrizmKit 一次性完成需求规划、实现、主 Agent 代码评审、测试、文档回顾和本地提交准备；如果中途测试失败，请按影响范围自动选择正确的修复路径。",
+      "expected_output": "The workflow orchestrator starts with prizmkit-plan, preserves one artifact_dir, invokes all six lifecycle stages in order, routes any production-affecting test repair back through code review, and asks for confirmation before committing.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "帮我完成这个需求：把订单 API 的金额字段从整数分改成 decimal，并更新相关校验、测试和文档。请直接走完整 PrizmKit 流程，不要只给我一个计划。",
+      "expected_output": "The orchestrator coordinates plan → implement → code-review → test → retrospective → committer, treats schema/API changes as production-affecting, and does not claim completion without TEST_PASS and commit confirmation.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "继续上次没有完成的 PrizmKit 需求流程。测试环境之前因为缺少测试数据库而 TEST_BLOCKED，现在数据库已经可用，请从正确阶段恢复，不要重新创建另一个 plan。",
+      "expected_output": "The workflow reads or reconstructs workflow state, reuses the original artifact_dir, resumes from prizmkit-test, and does not rerun planning or make speculative production edits.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "请把 README 里的一个拼写错误修正一下，并自动走完整六阶段流程。",
+      "expected_output": "The workflow identifies this as a direct low-risk edit rather than forcing the formal six-stage requirement workflow, unless the user explicitly confirms it should be treated as a formal requirement.",
+      "files": []
+    }
+  ]
+}
