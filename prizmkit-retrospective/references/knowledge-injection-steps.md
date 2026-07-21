@@ -1,12 +1,13 @@
 # Knowledge Injection — Detailed Steps (2a–2c)
 
-**2a.** Gather context — read the **actual code that was changed** plus any available artifacts:
+**2a.** Gather context from the **actual project files changed outside `.prizmkit/`**:
 
-- `git diff HEAD` — the real source of truth for what happened
-- `review-report.md` in the artifact directory — read the findings and fix instructions. If this file exists, use it as a source for pre-categorized decisions and findings.
-- `plan.md` in the artifact directory — read planned vs actual
-- Any companion documents in the artifact directory (e.g., `refactor-analysis.md`, `fix-report.md`) — read what was discovered
-- The relevant `.prizmkit/prizm-docs/` L1/L2 docs for affected modules
+- `git diff HEAD -- . ':(exclude).prizmkit/**'` — the source of truth for eligible project changes
+- Current Main-Agent context for the requirement — reuse it rather than rereading artifacts by default
+- Targeted unchanged source, interfaces, callers, dependents, or tests only when an eligible diff raises a concrete ambiguity
+- The affected Prizm docs only as update targets and existing-knowledge checks, never as changed project input
+
+Do not scan or mine any `.prizmkit/` file for retrospective knowledge. Plans, review reports, test evidence, workflow state, and existing Prizm docs may describe transient or generated material; they must not create a retrospective fact independently of an observed non-`.prizmkit/` code or project-file change.
 
 **2b.** Extract knowledge from what was **observed in code**, not invented:
 

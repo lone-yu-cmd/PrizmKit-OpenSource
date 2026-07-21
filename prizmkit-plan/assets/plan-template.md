@@ -113,3 +113,21 @@
 - [ ] [CP-1] After Setup: project builds and tests pass
 - [ ] [CP-2] After Foundation: base changes verified
 - [ ] [CP-3] After each Core group: acceptance criteria pass
+
+## Independent Plan Review
+<!-- Append this terminal audit record after the Main-Agent review and the optional independent-review attempt. -->
+<!-- Appending this terminal record does not trigger another Reviewer response and does not add an implementation task. -->
+
+- Capability Gate: <ENABLED | DOWNGRADED>
+- Downgrade Reason: <reason or none>
+- Reviewer Responses: <0..2>
+- Convergence: <no correction | all rejected | final-budget verification | local-review fallback | strict downgrade>
+- Final State Independently Rechecked: <yes | no | not applicable>
+- Unresolved Corrections: <none for PLAN_READY>
+
+### Adjudication
+<!-- Repeat for every proposed correction. Use `None.` when there were no corrections. -->
+- Correction: <summary>
+- Decision: <accepted | rejected | unresolved>
+- Evidence: <evidence>
+- Modification: <actual change or none>

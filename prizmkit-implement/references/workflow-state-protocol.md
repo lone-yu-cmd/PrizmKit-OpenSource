@@ -1,48 +1,55 @@
 # PrizmKit Workflow State Protocol
 
-`workflow-state.json` is optional runtime metadata created in a target project while a formal requirement is being developed. The published skills use it to preserve stage handoffs, repair routing, and resume information.
+`workflow-state.json` is lifecycle metadata for one formal requirement. It preserves stage handoff, orchestrator ownership, and resume information without replacing skill-owned artifacts or any host-owned execution checkpoint.
 
-## Location
+## Location and Identity
 
 ```text
 .prizmkit/state/workflows/<requirement-slug>.json
 ```
 
-The skill repository only documents this protocol. It does not create this directory until a skill is invoked in a target project, and it does not prescribe whether the target project commits, ignores, or shares the generated state.
+The active `artifact_dir` is preserved exactly across every stage:
+
+```text
+.prizmkit/specs/<requirement-slug>/
+.prizmkit/bugfix/<bug-id>/
+.prizmkit/refactor/<refactor-id>/
+```
+
+Never select another recent plan when resuming. Any external execution checkpoint remains separate from this state. Never merge, substitute, or infer one schema from the other.
 
 ## Authority
 
-The state file is a workflow index, not the authority for requirement content:
+The state file is an index, not the authority for stage completion:
 
 | Information | Authority |
 |---|---|
-| Requirement goals and acceptance criteria | `.prizmkit/specs/<slug>/spec.md` |
-| Implementation tasks and completion | `.prizmkit/specs/<slug>/plan.md` |
-| Review findings and verdict | `.prizmkit/specs/<slug>/review-report.md` |
-| Test execution and evidence | The test evidence package |
+| Requirement goals and acceptance criteria | `{artifact_dir}/spec.md` |
+| Implementation tasks and completion | `{artifact_dir}/plan.md` plus current workspace |
+| Review findings and result | `{artifact_dir}/review-report.md` |
+| Test semantics and native execution | `{artifact_dir}/test-report.md` |
+| Terminal testing result | `{artifact_dir}/test-result.json` |
+| Retrospective completion | `{artifact_dir}/retrospective-result.json` |
 | Durable architecture knowledge | `.prizmkit/prizm-docs/` |
-| Current stage and resume entry | Workflow state |
+| Local commit | Git history and confirmed or authorized commit identity |
+| Current stage, orchestrator, and resume entry | Workflow state |
+| External orchestration progress | External host checkpoint |
 
-Every skill must compare workflow state with the actual artifacts and current workspace. A missing or stale state file must be reconstructed from authoritative artifacts and reported; it must not be treated as a successful state by itself.
+Every consumer compares workflow state with the skill-owned artifacts and current workspace. Missing or stale state is reconstructed from those sources and is never accepted as success by itself.
 
 ## Schema
-
-The minimum schema is:
 
 ```json
 {
   "schema_version": 1,
-  "artifact_dir": ".prizmkit/specs/001-example",
+  "artifact_dir": ".prizmkit/specs/example",
+  "orchestrator": "prizmkit-workflow",
   "stage": "test",
   "status": "TEST_PASS",
-  "completed_stages": [
-    "plan",
-    "implement",
-    "code-review",
-    "test"
-  ],
-  "repair_round": 0,
+  "stage_result": "TEST_PASS",
+  "completed_stages": ["plan", "implement", "code-review", "test"],
   "repair_scope": null,
+  "repair_round": 0,
   "next_stage": "retrospective",
   "resume_from": "prizmkit-retrospective"
 }
@@ -52,87 +59,104 @@ The minimum schema is:
 
 | Field | Meaning |
 |---|---|
-| `schema_version` | State schema version. Current value is `1`. |
-| `artifact_dir` | The single requirement artifact directory reused by every stage. |
-| `stage` | The stage that most recently wrote the state. |
-| `status` | The truthful result of the current stage or workflow. |
+| `schema_version` | State schema version. |
+| `artifact_dir` | Generic requirement artifact root reused by every stage. |
+| `orchestrator` | Semantic coordinator identifier, or null for direct stage use. |
+| `stage` | Stage that most recently wrote state. |
+| `status` | Lifecycle progression status, distinct from `stage_result`. |
+| `stage_result` | Domain result such as `PASS`, `NEEDS_FIXES`, `TEST_*`, `DOCS_UPDATED`, or `NO_DOC_CHANGE`. |
 | `completed_stages` | Ordered stages completed for this requirement. |
-| `repair_round` | Outer automatic repair round, from `0` through `3`. |
-| `repair_scope` | `null`, `production`, or `test-infrastructure`. |
-| `next_stage` | The next semantic skill, or `null` after commit. |
-| `resume_from` | The exact skill name that can resume the requirement, or `null` after commit. |
+| `repair_scope` | Optional caller-owned routing scope. The test skill reports high-risk repairs through `test-result.json` instead of scheduling another stage. |
+| `repair_round` | Optional outer cross-stage repair round, from 0 through 3. It is not a test-internal repair counter. |
+| `next_stage` | Next semantic stage, or null when stopped. |
+| `resume_from` | Exact atomic skill that can resume, or null when none is selected. |
 
-## Lifecycle States
-
-Successful states:
+## Lifecycle and Result Mappings
 
 ```text
 PLAN_READY
-  → IMPLEMENTED
-  → REVIEW_PASS
-  → TEST_PASS
-  → RETRO_COMPLETE
-  → COMMIT_PENDING
-  → COMMITTED
+→ IMPLEMENTED
+→ REVIEW_PASS
+→ TEST_PASS
+→ RETRO_COMPLETE
+→ COMMIT_PENDING
+→ COMMITTED
 ```
 
-The retrospective stage may use `DOCS_UPDATED` or `NO_DOC_CHANGE` as its local status; both map to `RETRO_COMPLETE` for lifecycle progression.
-
-Repair and blocked states:
+No formal stage is silently optional. Domain artifacts map as follows:
 
 ```text
-REVIEW_NEEDS_FIXES → IMPLEMENT_REPAIR
-TEST_FAIL          → IMPLEMENT_REPAIR
-TEST_BLOCKED       → PAUSED_FOR_ENVIRONMENT
-RETRO_BLOCKED      → WORKFLOW_BLOCKED
-WORKFLOW_BLOCKED   → resume only after the recorded blocker is resolved
+review-report PASS               → status=REVIEW_PASS, stage_result=PASS
+review-report NEEDS_FIXES        → status=REVIEW_NEEDS_FIXES, stage_result=NEEDS_FIXES
+test-result TEST_PASS            → status=TEST_PASS, stage_result=TEST_PASS
+test-result TEST_NEEDS_FIXES     → status=TEST_NEEDS_FIXES, stage_result=TEST_NEEDS_FIXES
+test-result TEST_BLOCKED         → status=TEST_BLOCKED, stage_result=TEST_BLOCKED
+retrospective DOCS_UPDATED       → status=RETRO_COMPLETE, stage_result=DOCS_UPDATED
+retrospective NO_DOC_CHANGE      → status=RETRO_COMPLETE, stage_result=NO_DOC_CHANGE
 ```
 
-## Repair Routing
+`TEST_PASS` requires both `test-report.md` and a consistent `test-result.json`. No manifest, attestation, evidence package, or test-internal checkpoint is part of this contract.
+
+## Non-Pass Results and Routing Boundary
+
+`prizmkit-test` performs its own bounded failure repair and review loops before returning. The test skill never invokes another lifecycle stage.
 
 ```text
-REVIEW_NEEDS_FIXES
-  → implement
-  → code-review
-  → test
-
-TEST_FAIL with repair_scope=test-infrastructure
-  → implement
-  → test
-
-TEST_FAIL with repair_scope=production
-  → implement
-  → code-review
-  → test
+TEST_NEEDS_FIXES
+→ known correction or required delta review remains
+→ caller decides whether and how to arrange another stage
 
 TEST_BLOCKED
-  → do not modify production code speculatively
-  → resolve the environment blocker
-  → resume from test
+→ truth, input, safe environment, or reliable execution prevents a verdict
+→ never make speculative production edits
+→ caller or external host owns recovery policy
 ```
 
-The outer workflow permits at most three automatic repair rounds. The code-review skill has its own internal review-round limit. When an outer limit is reached, set `status` to `WORKFLOW_BLOCKED`, preserve the cause, and provide the next recovery entry instead of claiming success.
+A test result is not an AI CLI session classification. `TEST_NEEDS_FIXES` and `TEST_BLOCKED` must not be rewritten as crash or infrastructure failure merely because they stop lifecycle progression.
 
-## Handoff Rules
+Any outer repair or continuation policy is independently owned by the caller and cannot alter the test report. The Main-Agent test review limit of ten rounds, independent Test Reviewer limit of five responses, and execution-failure repair limit of three rounds are internal to one test invocation and do not update outer counters.
 
-1. The producing skill writes the next semantic stage after a successful result.
-2. The next skill receives the same `artifact_dir`; it must not select another recent artifact.
-3. A host that supports skill-to-skill invocation may continue automatically.
-4. A host without that capability reports the exact `resume_from` skill and stops without pretending that the next stage ran.
-5. A user confirmation before commit is a real gate; `COMMIT_PENDING` is not `COMMITTED`.
-6. After commit, `next_stage` and `resume_from` are `null`.
+## Orchestrator Ownership and Handoff
+
+1. An atomic stage performs only its own stage, writes its truthful result and artifact paths, and returns control.
+2. When `orchestrator` is non-null, only that orchestrator invokes the next skill.
+3. Direct stage use may report a possible next invocation but does not claim it ran.
+4. Every handoff preserves the same `artifact_dir`.
+5. External automation invokes atomic stages directly and does not nest the composite workflow.
+6. Workflow state never replaces or absorbs an external host checkpoint.
+
+## Commit Authorization
+
+Interactive execution:
+
+```text
+committer previews intended files and message
+→ waits for explicit current-user confirmation
+→ creates the local commit
+```
+
+Trusted headless execution:
+
+```text
+trusted host explicitly authorizes the current local task commit
+→ committer verifies gates and commits automatically
+→ remote publication remains separate
+```
+
+A self-declared or untrusted headless context does not authorize a commit.
 
 ## Recovery
 
 When state is missing, stale, or inconsistent:
 
-1. Read `spec.md` and `plan.md`.
-2. Inspect task markers and the current workspace diff.
-3. Read the latest review report and its final result.
-4. Validate the latest test evidence and verdict.
-5. Check the retrospective result when present.
-6. Reconstruct the latest safe predecessor stage.
-7. Write corrected state only after the reconstruction is explainable.
-8. Report the reconstruction and the exact next action.
+1. Reuse current context, then read `spec.md` and `plan.md` only when needed.
+2. Inspect task markers and current workspace.
+3. Read the current review report when needed to establish review authority.
+4. Validate that `test-report.md` and terminal `test-result.json` exist, agree, and reflect the claimed result.
+5. Validate `retrospective-result.json` when retrospective is claimed complete.
+6. Verify the commit when commit is claimed complete.
+7. Let an active external host validate its own checkpoint independently.
+8. Reconstruct the latest safe predecessor and report the reconstruction.
+9. Continue only from the first incomplete or invalid stage.
 
-Do not use a stale success state to bypass review, testing, retrospective, or commit confirmation.
+Stale state never bypasses review, testing, retrospective, commit authorization, or external checkpoint enforcement.

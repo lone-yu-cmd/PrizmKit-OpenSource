@@ -13,8 +13,18 @@ VERDICTS = {"PASS", "NEEDS_FIXES"}
 EVENTS = {
     "main-review-round",
     "repair-verification",
+    "independent-review-round",
+    "independent-adjudication",
+    "independent-review-downgrade",
     "final-verification",
 }
+REVIEWER_RESULTS = {
+    "NO_CORRECTION_NEEDED",
+    "CORRECTION_NEEDED",
+    "REVIEW_BLOCKED",
+}
+ADJUDICATION_DECISIONS = {"accepted", "rejected", "unresolved"}
+RECHECK_STATES = {"yes", "no", "not applicable"}
 FINAL_HEADING = "## Final Result"
 
 
@@ -57,6 +67,12 @@ def _ensure_appendable(path: Path) -> None:
         raise ReportStateError("report is not an initialized in-progress execution")
     if FINAL_HEADING in text:
         raise ReportStateError("cannot append after Final Result")
+
+
+def _ensure_unique_independent_response(path: Path, response: int) -> None:
+    heading = f"## Independent Review Round {response}"
+    if heading in _report_text(path):
+        raise ReportStateError(f"independent response {response} was already recorded")
 
 
 def _append_section(path: Path, section: str) -> None:
@@ -111,6 +127,76 @@ def _render_event(data: dict[str, Any]) -> str:
             ]
         )
 
+    if event == "independent-review-round":
+        response = _require_count(data, "response", maximum=5)
+        if response < 1:
+            raise ReportStateError("response must be at least 1")
+        result = _require_text(data, "result")
+        if result not in REVIEWER_RESULTS:
+            raise ReportStateError(f"result has invalid value: {result!r}")
+        corrections = _require_count(data, "corrections")
+        accepted = _require_count(data, "accepted")
+        rejected = _require_count(data, "rejected")
+        unresolved = _require_count(data, "unresolved")
+        if accepted + rejected + unresolved != corrections:
+            raise ReportStateError(
+                "accepted + rejected + unresolved must equal corrections"
+            )
+        if result == "NO_CORRECTION_NEEDED" and corrections:
+            raise ReportStateError(
+                "NO_CORRECTION_NEEDED requires zero corrections"
+            )
+        if result == "CORRECTION_NEEDED" and not corrections:
+            raise ReportStateError(
+                "CORRECTION_NEEDED requires at least one correction"
+            )
+        if result == "REVIEW_BLOCKED" and not unresolved:
+            raise ReportStateError("REVIEW_BLOCKED requires an unresolved correction")
+        return "\n".join(
+            [
+                f"## Independent Review Round {response}",
+                "",
+                f"- Result: {result}",
+                f"- Corrections: {corrections}",
+                f"- Accepted: {accepted}",
+                f"- Rejected: {rejected}",
+                f"- Unresolved: {unresolved}",
+                f"- Next: {_require_text(data, 'next')}",
+            ]
+        )
+
+    if event == "independent-adjudication":
+        decision = _require_text(data, "decision")
+        if decision not in ADJUDICATION_DECISIONS:
+            raise ReportStateError(f"decision has invalid value: {decision!r}")
+        return "\n".join(
+            [
+                "## Independent Adjudication",
+                "",
+                f"- Correction: {_require_text(data, 'correction')}",
+                f"- Decision: {decision}",
+                f"- Evidence: {_require_text(data, 'evidence')}",
+                f"- Modification: {_require_text(data, 'modification')}",
+            ]
+        )
+
+    if event == "independent-review-downgrade":
+        rechecked = _require_text(data, "final_state_independently_rechecked")
+        if rechecked not in RECHECK_STATES:
+            raise ReportStateError(
+                "final_state_independently_rechecked has invalid value: "
+                f"{rechecked!r}"
+            )
+        return "\n".join(
+            [
+                "## Independent Review Downgrade",
+                "",
+                f"- Reason: {_require_text(data, 'reason')}",
+                f"- Fallback: {_require_text(data, 'fallback')}",
+                f"- Final State Independently Rechecked: {rechecked}",
+            ]
+        )
+
     status = _require_text(data, "status")
     if status not in {"COMPLETED", "FAILED"}:
         raise ReportStateError(f"status has invalid value: {status!r}")
@@ -127,7 +213,13 @@ def _render_event(data: dict[str, Any]) -> str:
 def append_event(path: Path, data: Any) -> None:
     """Append one validated progress event to an active execution."""
     _ensure_appendable(path)
-    _append_section(path, _render_event(_require_object(data)))
+    valid = _require_object(data)
+    if valid.get("event") == "independent-review-round":
+        response = _require_count(valid, "response", maximum=5)
+        if response < 1:
+            raise ReportStateError("response must be at least 1")
+        _ensure_unique_independent_response(path, response)
+    _append_section(path, _render_event(valid))
 
 
 def append_final_result(path: Path, data: Any) -> None:

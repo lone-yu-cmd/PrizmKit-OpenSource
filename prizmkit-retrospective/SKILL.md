@@ -27,6 +27,10 @@ prizmkit-plan
   → prizmkit-committer
 ```
 
+## Atomic Stage Boundary
+
+`prizmkit-retrospective` owns only structural documentation synchronization, durable knowledge injection, and retrospective result recording. It writes its truthful completion status and result plus `next_stage`, then returns control. It must not invoke `prizmkit-committer` itself; the active orchestrator owns the next-stage invocation.
+
 ## When to Use
 
 - After `/prizmkit-test` returns `TEST_PASS` for a formal requirement.
@@ -36,7 +40,7 @@ prizmkit-plan
 ## When NOT to Use
 
 - The requirement has not passed code review and testing.
-- `TEST_FAIL` or `TEST_BLOCKED` remains unresolved.
+- `TEST_NEEDS_FIXES` or `TEST_BLOCKED` remains unresolved.
 - The request is a direct edit outside the formal requirement lifecycle, unless the user explicitly asks for documentation maintenance.
 - First-time docs initialization or out-of-band docs repair; use `/prizmkit-prizm-docs` instead.
 
@@ -45,20 +49,24 @@ prizmkit-plan
 1. Reuse the caller's `artifact_dir`; do not select another requirement.
 2. Confirm the latest review result is `PASS`.
 3. Confirm the latest testing result is `TEST_PASS`.
-4. Read the final diff, `spec.md`, `plan.md`, final `review-report.md`, final test evidence, and affected Prizm docs when present.
+4. Read the final source diff with `.prizmkit/` excluded, then use `spec.md`, `plan.md`, the final `review-report.md`, `test-report.md`, and `test-result.json` only as supporting context for the non-`.prizmkit/` changes.
 5. If the workflow state is missing or stale, reconstruct it from those authoritative artifacts and report the reconstruction.
+
+`.prizmkit/` is always excluded from retrospective project-change input scope. Do not treat any file under `.prizmkit/`—including plans, artifacts, state, evidence, or existing Prizm docs—as a changed project file from which structural or durable knowledge is inferred. Required lifecycle state/evidence writes and targeted `.prizmkit/prizm-docs/` updates remain outputs; documentation changes must be justified only by observed non-`.prizmkit/` project changes.
 
 ## Job 1: Structural Sync
 
 When `.prizmkit/prizm-docs/` exists, read `${SKILL_DIR}/references/structural-sync-steps.md` and synchronize documentation with the final codebase changes.
 
-Review:
+Review only changed project files outside `.prizmkit/`:
 
 - added, modified, deleted, and renamed source files;
-- L1 file counts and module mappings;
-- L2 `KEY_FILES`, `INTERFACES`, `DEPENDENCIES`, and durable traps for affected modules;
-- stale pointers and stale traps;
-- format, pointer, size, and memory-hygiene constraints.
+- structural module files, configuration, interfaces, and tests when they reveal durable project behavior;
+- documentation mappings affected by those non-`.prizmkit/` project changes;
+- stale pointers and stale traps implicated by those project changes;
+- format, pointer, size, and memory-hygiene constraints for any docs the retrospective updates.
+
+Never use `.prizmkit/` changes themselves as structural-sync input.
 
 When `.prizmkit/prizm-docs/` does not exist, do not pretend structural sync occurred. Record `NO_DOC_CHANGE` with reason `PRIZM_DOCS_NOT_INITIALIZED` and recommend `/prizmkit-init` or `/prizmkit-prizm-docs` for a future setup. The formal lifecycle may still continue because initialization is a soft prerequisite.
 
@@ -66,7 +74,7 @@ Do not create an L2 document merely because one was missing during implementatio
 
 ## Job 2: Knowledge Injection
 
-When the final change reveals durable knowledge, read `${SKILL_DIR}/references/knowledge-injection-steps.md` and inject only stable product/domain knowledge into Prizm docs.
+When the final project change outside `.prizmkit/` reveals durable knowledge, read `${SKILL_DIR}/references/knowledge-injection-steps.md` and inject only stable product/domain knowledge into Prizm docs.
 
 Candidate knowledge includes:
 
@@ -88,6 +96,22 @@ When no durable structural or knowledge change exists, return `NO_DOC_CHANGE` an
 3. Do not change the target project's Git or ignore policy. If the host or project workflow stages docs, report what was staged; otherwise leave staging to `/prizmkit-committer`.
 4. Never claim documentation synchronization passed if validation failed.
 
+## Retrospective Result
+
+Write `{artifact_dir}/retrospective-result.json` for every formal requirement:
+
+```json
+{
+  "status": "RETRO_COMPLETE",
+  "result": "DOCS_UPDATED",
+  "reason": "Durable module interfaces and traps changed",
+  "review_verdict": "PASS",
+  "test_verdict": "TEST_PASS"
+}
+```
+
+`status=RETRO_COMPLETE` is the stable completion status. `result` must be exactly `DOCS_UPDATED` or `NO_DOC_CHANGE`; do not use either result as a substitute for completion status. Use `result=NO_DOC_CHANGE` with a concrete reason when no documentation update is warranted. This artifact is the retrospective gate evidence consumed by the committer and external automation; workflow state alone does not prove completion.
+
 ## Workflow State and Handoff
 
 Before reading or updating workflow state, read `${SKILL_DIR}/references/workflow-state-protocol.md`.
@@ -104,7 +128,7 @@ On successful completion, update `.prizmkit/state/workflows/<requirement-slug>.j
 }
 ```
 
-Use `status=DOCS_UPDATED` when durable docs changed, or `status=NO_DOC_CHANGE` when the stage completed without a docs update. Both are successful retrospective outcomes and permit the commit stage.
+Use `status=RETRO_COMPLETE` for both successful outcomes, with `result=DOCS_UPDATED` when durable docs changed or `result=NO_DOC_CHANGE` when the stage completed without a docs update. Both result values permit the commit stage.
 
 If documentation validation or synchronization cannot safely complete, return `RETRO_BLOCKED`, do not commit, and provide the exact recovery entry.
 
@@ -112,6 +136,7 @@ If documentation validation or synchronization cannot safely complete, return `R
 
 Report:
 
+- `{artifact_dir}/retrospective-result.json` with `DOCS_UPDATED` or `NO_DOC_CHANGE`;
 - docs updated, created, or intentionally unchanged;
 - durable knowledge decisions;
 - validation evidence;
@@ -125,4 +150,4 @@ RETRO_COMPLETE
   → /prizmkit-committer
 ```
 
-If semantic handoff is supported, continue automatically. Otherwise provide the deterministic next invocation.
+If workflow state names an active `orchestrator`, return `RETRO_COMPLETE`, `stage_result`, the retrospective/state paths, and `next_stage=committer` to it; do not invoke the committer independently. For direct stage use, provide the deterministic `/prizmkit-committer` invocation; a host may perform that semantic handoff on the user's behalf.

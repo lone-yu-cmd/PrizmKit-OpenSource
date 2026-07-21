@@ -4,7 +4,7 @@
 
 Run this local planning-quality gate after `spec.md` and `plan.md` are drafted or updated, before handing off to `/prizmkit-implement`.
 
-This is not a separate skill and it does not use a Critic agent. It is a bounded review loop executed inside `prizmkit-plan` to improve the planning artifacts only.
+This is not a separate skill and it does not use a Critic agent. It is the mandatory Main-Agent baseline executed inside `prizmkit-plan` to improve the planning artifacts only. Its maximum of two local rounds remains independent of the optional Reviewer described in `independent-plan-review.md`.
 
 ## Non-Goals
 
@@ -13,7 +13,7 @@ Do not do any of the following from this guide:
 - Start implementation or edit product/source code.
 - Run tests, builds, lint, or package commands.
 - Launch a feature, bugfix, or refactor pipeline.
-- Spawn or require a Critic agent.
+- Spawn or require a Critic agent inside this Main-Agent loop. The separate optional independent review is considered only after this loop converges and only through `independent-plan-review.md`.
 - Create a separate review-loop skill.
 - Expand scope beyond improving `spec.md` and `plan.md`.
 
@@ -87,8 +87,8 @@ Optional findings do not block handoff.
 4. Do not apply `OPTIONAL` findings unless they clearly improve readiness without expanding scope.
 5. If any fixes were applied, rerun this review once.
 6. Stop after at most 2 total review rounds.
-7. If unresolved `BLOCKER` findings remain after the final round, stop planning and ask targeted clarification questions. Do not escalate to a Critic agent.
-8. If no unresolved blockers remain, report that the planning quality gate passed and hand off to `/prizmkit-implement`.
+7. If unresolved `BLOCKER` findings remain after the final round, stop planning and ask targeted clarification questions. Do not escalate from this loop to a Critic agent or treat independent review as blocker recovery.
+8. If no unresolved blockers remain, report that the mandatory Main-Agent planning quality gate passed and hand off to the optional independent Plan review boundary in `independent-plan-review.md`.
 
 ## Output Summary
 

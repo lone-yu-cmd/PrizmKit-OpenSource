@@ -10,7 +10,7 @@ The Main Agent must provide:
 - The exact plan tasks or files delegated.
 - Any loaded Prizm docs traps/rules relevant to the delegated files.
 
-The implementation subagent must run in the same active checkout as the Main Agent.
+The implementation subagent must run in the same active checkout as the Main Agent. This is an inline subagent constraint, not a permission to create an isolated execution unit or worktree.
 
 ## Active Checkout Guard
 

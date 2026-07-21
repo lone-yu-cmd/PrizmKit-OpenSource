@@ -5,7 +5,7 @@ description: "PrizmKit framework introduction and lifecycle navigator. Explains 
 
 # PrizmKit — Framework Introduction and Navigator
 
-`/prizmkit` explains the PrizmKit L1 toolkit and directs the user to the appropriate independent skill. It does not execute a requirement lifecycle itself.
+`/prizmkit` explains the PrizmKit toolkit and directs the user to the appropriate independent skill. It does not execute a requirement lifecycle itself.
 
 ## When to Use
 
@@ -24,7 +24,7 @@ description: "PrizmKit framework introduction and lifecycle navigator. Explains 
 ## Responsibility Map
 
 ```text
-PrizmKit L1
+PrizmKit Toolkit
 ├── prizmkit
 │   └── Framework introduction and navigation
 ├── prizmkit-workflow
@@ -72,13 +72,13 @@ Typos, pure formatting, small documentation edits, and other explicitly low-risk
 | `prizmkit-plan` | Clarify the requirement and create/review `spec.md` and `plan.md`. | `PLAN_READY` → `prizmkit-implement` |
 | `prizmkit-implement` | Execute the plan tasks and record completion. | `IMPLEMENTED` → `prizmkit-code-review` |
 | `prizmkit-code-review` | Main Agent reviews, repairs, verifies, and loops until convergence. | `REVIEW_PASS` → `prizmkit-test` |
-| `prizmkit-test` | Validate the final reviewed workspace with project-native evidence. | `TEST_PASS` → `prizmkit-retrospective` |
+| `prizmkit-test` | Validate the final reviewed workspace with project-native tests and a consistent terminal report/result pair. | `TEST_PASS` → `prizmkit-retrospective` |
 | `prizmkit-retrospective` | Synchronize durable project documentation or record no documentation change. | `RETRO_COMPLETE` → `prizmkit-committer` |
 | `prizmkit-committer` | Verify gates, request commit confirmation, and create the local commit. | `COMMITTED` |
 
 ### `prizmkit-workflow`
 
-Use for a one-entry formal requirement workflow. It coordinates all six lifecycle skills, preserves one `artifact_dir`, routes failures, and stops for commit confirmation. It is not an L2 pipeline runtime and does not handle multiple requirements.
+Use for a one-entry formal requirement workflow. It coordinates all six lifecycle skills, preserves one `artifact_dir`, routes failures, and stops for commit confirmation. It handles exactly one requirement per invocation.
 
 ### `prizmkit-init`
 
@@ -108,19 +108,14 @@ REVIEW_NEEDS_FIXES
   → prizmkit-implement
   → prizmkit-code-review
 
-TEST_FAIL affecting only tests, fixtures, or test-runner configuration
-  → prizmkit-implement
-  → prizmkit-test
-
-TEST_FAIL affecting production code, runtime configuration, schema,
-dependencies, or public interfaces
-  → prizmkit-implement
-  → prizmkit-code-review
-  → prizmkit-test
+TEST_NEEDS_FIXES
+  → preserve test-report.md and test-result.json
+  → stop with the known correction or delta-review requirement
+  → caller owns any later review/retest route
 
 TEST_BLOCKED
-  → pause without speculative code changes
-  → resume from prizmkit-test when the environment is available
+  → preserve the blocker without speculative code changes
+  → caller owns recovery after truth, input, safety, environment, or reliability is restored
 ```
 
 Automatic outer repair is limited to three rounds. The workflow stops with a resumable blocked result when the limit is reached or a gate cannot be safely completed.
@@ -141,7 +136,7 @@ An active requirement may use:
 
 This runtime state records the current stage, terminal status, repair scope, repair round, and resume entry. The skill set does not prescribe whether the target project commits, ignores, or shares this file.
 
-Read `${SKILL_DIR}/references/workflow-state-protocol.md` for the state protocol. If the state file is missing or stale, use `spec.md`, `plan.md`, review evidence, and test evidence to reconstruct the safest recoverable stage and report that reconstruction.
+Read `${SKILL_DIR}/references/workflow-state-protocol.md` for the state protocol. If the state file is missing or stale, use `spec.md`, `plan.md`, the review report, `test-report.md`, and `test-result.json` to reconstruct the safest recoverable stage and report that reconstruction.
 
 ## Quick Start
 
@@ -163,7 +158,9 @@ Then:
 
 ## Scope Boundary
 
-The L1 toolkit does not include L2 application planners, batch planners, pipeline launchers, or the autonomous pipeline runtime. It does not promise universal automatic handoff, universal deployment automation, automatic remote push, or access beyond the host platform's permissions and environment.
+This toolkit is self-contained: its skills describe only this toolkit's lifecycle and independent entry points. External systems may integrate through the published skill inputs, outputs, state, and authorization contracts, but their internal architecture and names are outside this toolkit's protocol.
+
+The toolkit does not promise universal automatic handoff, universal deployment automation, automatic remote push, or access beyond the host platform's permissions and environment.
 
 If the user says only "ship it", ask whether they mean:
 

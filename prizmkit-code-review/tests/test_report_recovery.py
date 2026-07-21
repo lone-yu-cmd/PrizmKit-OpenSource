@@ -89,6 +89,138 @@ class ReportLifecycleTests(unittest.TestCase):
             with self.assertRaises(render_review_report.ReportStateError):
                 render_review_report.append_final_result(report, self._pass_result())
 
+    def test_independent_round_validates_result_counts_and_response_limit(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "review-report.md"
+            render_review_report.initialize_report(report)
+            render_review_report.append_event(
+                report,
+                {
+                    "event": "independent-review-round",
+                    "response": 5,
+                    "result": "CORRECTION_NEEDED",
+                    "corrections": 2,
+                    "accepted": 1,
+                    "rejected": 1,
+                    "unresolved": 0,
+                    "next": "Apply accepted correction and verify final-budget state",
+                },
+            )
+            text = report.read_text()
+            self.assertIn("## Independent Review Round 5", text)
+            self.assertIn("- Result: CORRECTION_NEEDED", text)
+            self.assertIn("- Corrections: 2", text)
+
+            with self.assertRaises(render_review_report.ReportStateError):
+                render_review_report.append_event(
+                    report,
+                    {
+                        "event": "independent-review-round",
+                        "response": 6,
+                        "result": "NO_CORRECTION_NEEDED",
+                        "corrections": 0,
+                        "accepted": 0,
+                        "rejected": 0,
+                        "unresolved": 0,
+                        "next": "Invalid sixth response",
+                    },
+                )
+
+    def test_independent_round_rejects_duplicate_response_numbers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "review-report.md"
+            render_review_report.initialize_report(report)
+            event = {
+                "event": "independent-review-round",
+                "response": 1,
+                "result": "NO_CORRECTION_NEEDED",
+                "corrections": 0,
+                "accepted": 0,
+                "rejected": 0,
+                "unresolved": 0,
+                "next": "Final verification",
+            }
+            render_review_report.append_event(report, event)
+            with self.assertRaises(render_review_report.ReportStateError):
+                render_review_report.append_event(report, event)
+
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "review-report.md"
+            render_review_report.initialize_report(report)
+            base = {
+                "event": "independent-review-round",
+                "response": 1,
+                "result": "CORRECTION_NEEDED",
+                "corrections": 1,
+                "accepted": 0,
+                "rejected": 0,
+                "unresolved": 0,
+                "next": "Invalid",
+            }
+            with self.assertRaises(render_review_report.ReportStateError):
+                render_review_report.append_event(report, base)
+            with self.assertRaises(render_review_report.ReportStateError):
+                render_review_report.append_event(
+                    report, {**base, "result": "PASS", "corrections": 0}
+                )
+            with self.assertRaises(render_review_report.ReportStateError):
+                render_review_report.append_event(
+                    report,
+                    {
+                        **base,
+                        "result": "NO_CORRECTION_NEEDED",
+                        "corrections": 1,
+                        "rejected": 1,
+                    },
+                )
+
+    def test_independent_adjudication_and_downgrade_are_append_only_events(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "review-report.md"
+            render_review_report.initialize_report(report)
+            render_review_report.append_event(
+                report,
+                {
+                    "event": "independent-adjudication",
+                    "correction": "Align error-path acceptance criterion.",
+                    "decision": "accepted",
+                    "evidence": "The existing criterion omits the required failure state.",
+                    "modification": "Added the failure-state criterion.",
+                },
+            )
+            render_review_report.append_event(
+                report,
+                {
+                    "event": "independent-review-downgrade",
+                    "reason": "Native continuation became unavailable.",
+                    "fallback": "Main-Agent review rerun over the accepted repair.",
+                    "final_state_independently_rechecked": "no",
+                },
+            )
+            text = report.read_text()
+            self.assertLess(
+                text.index("## Independent Adjudication"),
+                text.index("## Independent Review Downgrade"),
+            )
+            self.assertIn("- Decision: accepted", text)
+            self.assertIn("- Final State Independently Rechecked: no", text)
+
+    def test_independent_adjudication_validates_decision(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "review-report.md"
+            render_review_report.initialize_report(report)
+            with self.assertRaises(render_review_report.ReportStateError):
+                render_review_report.append_event(
+                    report,
+                    {
+                        "event": "independent-adjudication",
+                        "correction": "Invalid decision.",
+                        "decision": "ignored",
+                        "evidence": "None.",
+                        "modification": "None.",
+                    },
+                )
+
     def test_append_after_final_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "review-report.md"

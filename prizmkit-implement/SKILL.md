@@ -43,7 +43,11 @@ Before editing:
 
 ## Optional Inline Delegation
 
-The default is direct Main-Agent implementation. If a narrow slice is delegated, read `${SKILL_DIR}/references/implementation-subagent-procedure.md` and follow its active-checkout/no-worktree constraints. Delegation is optional implementation detail and does not alter lifecycle handoff or ownership.
+The default is direct Main-Agent implementation. If a narrow slice is delegated, use `prompt_reference: ${SKILL_DIR}/references/implementation-subagent-procedure.md` and follow its active-checkout/no-worktree constraints. Delegation is optional implementation detail and does not alter lifecycle handoff or ownership.
+
+## Atomic Stage Boundary
+
+`prizmkit-implement` owns only execution of plan tasks and implementation repairs. It writes its truthful terminal result and `next_stage`, then returns control. When an external orchestrator is active, it must not invoke code review or test itself. The active orchestrator owns the next-stage invocation.
 
 ## Execution
 
@@ -63,7 +67,7 @@ For each unchecked or explicitly repair-scoped task, in plan order:
 
 When routed from a failed test or review, read `repair_scope` from workflow state and constrain edits accordingly:
 
-- `production`: production code, runtime configuration, schema, dependency, or public interface changes. Completion must hand off to `prizmkit-code-review`.
+- `production`, `runtime`, `schema`, `dependency`, or `public-interface`: production-affecting changes. Completion must hand off to `prizmkit-code-review`.
 - `test-infrastructure`: tests, fixtures, test runner configuration, or evidence setup only. Completion may hand off directly to `prizmkit-test`.
 - `unknown`: stop and ask the user; do not guess which downstream gates can be skipped.
 
@@ -94,7 +98,7 @@ On successful implementation, update `.prizmkit/state/workflows/<requirement-slu
 }
 ```
 
-For a repair, increment `repair_round`, set `status` to `IMPLEMENT_REPAIR`, preserve the triggering failure in the state, and select the next stage according to `repair_scope`.
+For a repair, increment `repair_round`, set `status` to `IMPLEMENT_REPAIR`, preserve the triggering failure in the state, and select the next stage according to `repair_scope`. The outer workflow permits at most three repair rounds; the implementation stage must return a blocked result rather than start a fourth round.
 
 ## Output and Handoff
 
@@ -121,4 +125,4 @@ IMPLEMENTED
   → /prizmkit-test
 ```
 
-If semantic handoff is supported, continue automatically with the same `artifact_dir`; otherwise provide the deterministic next invocation.
+If workflow state names an active `orchestrator`, return the terminal result, state path, and selected next stage to it; do not invoke another stage independently. For direct stage use, provide the deterministic next invocation with the same `artifact_dir`; a host may perform that semantic handoff on the user's behalf.

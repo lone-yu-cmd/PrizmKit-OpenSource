@@ -1,6 +1,6 @@
 ---
 name: "prizmkit-plan"
-description: "Start the formal PrizmKit requirement lifecycle by turning a natural-language change into reviewed spec.md and plan.md artifacts, initializing workflow state, and handing off to prizmkit-implement. Works for features, bug fixes, refactors, migrations, tests, and other formal requirements. (project)"
+description: "Start the formal PrizmKit requirement lifecycle by turning a natural-language change into spec.md and plan.md artifacts, running mandatory Main-Agent planning review plus optional capability-gated independent correctness review, initializing workflow state, and handing off to prizmkit-implement. Works for features, bug fixes, refactors, migrations, tests, and other formal requirements. (project)"
 ---
 
 # PrizmKit Plan
@@ -37,6 +37,10 @@ Planning depth may be concise or comprehensive, but no later formal lifecycle st
 |---|---|---|
 | `description` | Yes | Natural-language description of the requirement. |
 | `artifact_dir` | No | Directory for the change artifact. If omitted, create a numbered slug under `.prizmkit/specs/`. |
+
+## Atomic Stage Boundary
+
+`prizmkit-plan` owns only specification, plan, task generation, and planning-quality review. It writes its truthful terminal result and `next_stage`, then returns control. It must not invoke `prizmkit-implement` itself, including when an external orchestrator is active. The active orchestrator owns the next-stage invocation.
 
 ## Phase 0: Initialization Check and Context
 
@@ -99,7 +103,7 @@ Precondition: `spec.md` exists with no unresolved blocker.
 
 ## Phase 4: Plan/Spec Review Loop
 
-Run every time `spec.md` or `plan.md` is created or changed.
+Run every time `spec.md` or `plan.md` is created or changed. This is the mandatory Main-Agent baseline on every host.
 
 1. Read `${SKILL_DIR}/references/review-plan-spec-loop.md`.
 2. Review the current artifacts against the requirement and project context.
@@ -109,9 +113,23 @@ Run every time `spec.md` or `plan.md` is created or changed.
 6. If a `BLOCKER` remains, ask targeted questions in interactive mode; otherwise record `PLAN_BLOCKED` and stop.
 7. Continue only when no unresolved blocker remains.
 
-The planning review must not implement code, run the full test stage, or launch L2 orchestration.
+The planning review must not implement code, run the full test stage, or launch external orchestration.
 
-## Phase 5: Workflow State and Handoff
+## Phase 5: Independent Plan Review
+
+Run only after the Main-Agent Plan/Spec review converges. This optional check never replaces or weakens the completed local review.
+
+1. Read `${SKILL_DIR}/references/independent-plan-review.md` and follow its complete contract.
+2. Apply its all-or-nothing semantic Host Capability Gate. If any required structural capability is unavailable or unproven, create no Reviewer and record strict downgrade in `plan.md`.
+3. When the gate passes, capture bounded immutable current-state input and create exactly one Plan Reviewer with the reference's Initial Reviewer Prompt.
+4. Use maximum two Reviewer responses. Adjudicate every correction as `accepted`, `rejected`, or `unresolved`; the Main Agent alone modifies artifacts.
+5. After an accepted correction, perform targeted Plan/Spec verification and, when one response remains, natively resume the exact same Reviewer. Never create a replacement Reviewer or simulate continuation with a fresh Reviewer plus summary.
+6. If native resume fails after modification, record downgrade and rerun the Main-Agent local Plan/Spec review over that modification as specified by the reference.
+7. If the final allowed response causes a modification, run targeted verification, record that the final state was not independently rechecked, and do not exceed the response budget.
+8. Append the terminal `## Independent Plan Review` record. Appending that audit record does not trigger another response.
+9. Any unresolved correction produces `PLAN_BLOCKED`; otherwise independent convergence or strict downgrade may continue to handoff from the valid completed Main-Agent review.
+
+## Phase 6: Workflow State and Handoff
 
 Read `${SKILL_DIR}/references/workflow-state-protocol.md` and create or update:
 
@@ -148,7 +166,7 @@ The state file is runtime metadata. Do not change the target project's Git or ig
 
 On `PLAN_READY`:
 
-1. If the host supports semantic skill handoff, invoke `/prizmkit-implement` with the same `artifact_dir`.
-2. Otherwise stop successfully and report exactly one deterministic next action: `/prizmkit-implement`, with the state-file path and `artifact_dir`.
+1. If workflow state names an active `orchestrator`, return `PLAN_READY`, `stage_result=PLAN_READY`, `next_stage=implement`, the state path, and the same `artifact_dir` to that orchestrator; do not invoke the next stage independently.
+2. For direct stage use with no active orchestrator, report exactly one deterministic next action: `/prizmkit-implement`, with `stage_result=PLAN_READY`, the state-file path, and `artifact_dir`; a host may perform that semantic handoff on the user's behalf.
 
 Read `${SKILL_DIR}/references/examples.md` only when a worked planning example is needed.

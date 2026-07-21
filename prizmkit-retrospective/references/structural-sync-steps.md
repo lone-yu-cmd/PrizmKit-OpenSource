@@ -2,13 +2,15 @@
 
 ## 1. Get changed files
 
-Get changed files from staged and unstaged changes relative to HEAD:
+Get changed project files from staged and unstaged changes relative to HEAD while excluding the entire `.prizmkit/` tree:
 
 ```bash
-git diff HEAD --name-status
+git diff HEAD --name-status -- . ':(exclude).prizmkit/**'
 ```
 
-If the caller supplied an explicit file list, use that list instead and note the source in the report.
+If pathspec exclusion is unavailable, filter every result whose normalized repository-relative path is exactly `.prizmkit` or starts with `.prizmkit/` before classification. Do not infer project structure or durable knowledge from excluded files.
+
+If the caller supplied an explicit file list, apply the same `.prizmkit/` exclusion before using it and note the source in the report. If no files remain, structural sync is not needed.
 
 ## 2. Map files to modules
 
@@ -33,7 +35,6 @@ If a changed source file maps to no module, evaluate whether its directory quali
 Skip structural sync when changes are limited to:
 
 - comments, whitespace, or formatting
-- `.prizm` files only
 - internal implementation details with no interface, dependency, data-flow, or module mapping impact
 - test-only changes that reveal no durable boundaries, traps, interface constraints, behavior rules, or regression knowledge
 
