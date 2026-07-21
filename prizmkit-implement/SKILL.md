@@ -89,7 +89,8 @@ On successful implementation, update `.prizmkit/state/workflows/<requirement-slu
 ```json
 {
   "stage": "implement",
-  "status": "IMPLEMENTED",
+  "status": "completed",
+  "stage_result": "IMPLEMENTED",
   "completed_stages": ["plan", "implement"],
   "repair_round": 0,
   "repair_scope": null,
@@ -98,7 +99,7 @@ On successful implementation, update `.prizmkit/state/workflows/<requirement-slu
 }
 ```
 
-For a repair, increment `repair_round`, set `status` to `IMPLEMENT_REPAIR`, preserve the triggering failure in the state, and select the next stage according to `repair_scope`. The outer workflow permits at most three repair rounds; the implementation stage must return a blocked result rather than start a fourth round.
+For a repair, increment `repair_round`, set `status=failed` and `stage_result=IMPLEMENT_REPAIR`, preserve the triggering failure in the state, and select the next stage according to `repair_scope`. The outer workflow permits at most three repair rounds; the implementation stage must return a blocked result rather than start a fourth round.
 
 ## Output and Handoff
 

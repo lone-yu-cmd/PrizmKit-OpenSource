@@ -1,6 +1,6 @@
 # Test Report Template
 
-Create one human-readable report for every terminal result. Replace an older report for the same invocation context; do not append duplicate final-result sections.
+Create one human-readable report for every terminal result. Replace an older report for the same invocation context; do not append duplicate final-result sections. Use the exact `## Final Result` heading and `- Result: <TEST_*>` marker shown below. Do not rename this machine-read contract to `Terminal Result`, `Final Decision`, or another heading.
 
 ```markdown
 # Test Report

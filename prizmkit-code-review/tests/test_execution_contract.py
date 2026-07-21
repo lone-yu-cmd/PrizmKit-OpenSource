@@ -192,8 +192,9 @@ class ExecutionContractTests(unittest.TestCase):
     def test_review_precedes_full_test_and_pass_hands_off_to_test(self):
         required = [
             "before the full test stage",
-            "the final test report/result pair represents the final reviewed workspace",
-            '"status": "REVIEW_PASS"',
+            "project-native tests run against the final reviewed workspace",
+            '"status": "completed"',
+            '"stage_result": "REVIEW_PASS"',
             '"next_stage": "test"',
             '"resume_from": "prizmkit-test"',
             "REVIEW_PASS\n  → /prizmkit-test",
@@ -203,7 +204,8 @@ class ExecutionContractTests(unittest.TestCase):
 
     def test_review_needs_fixes_routes_to_implementation(self):
         required = [
-            '"status": "REVIEW_NEEDS_FIXES"',
+            '"status": "failed"',
+            '"stage_result": "REVIEW_NEEDS_FIXES"',
             '"repair_scope": "production"',
             '"next_stage": "implement"',
             '"resume_from": "prizmkit-implement"',

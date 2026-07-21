@@ -69,12 +69,12 @@ Typos, pure formatting, small documentation edits, and other explicitly low-risk
 
 | Stage | Responsibility | Success handoff |
 |---|---|---|
-| `prizmkit-plan` | Clarify the requirement and create/review `spec.md` and `plan.md`. | `PLAN_READY` → `prizmkit-implement` |
-| `prizmkit-implement` | Execute the plan tasks and record completion. | `IMPLEMENTED` → `prizmkit-code-review` |
-| `prizmkit-code-review` | Main Agent reviews, repairs, verifies, and loops until convergence. | `REVIEW_PASS` → `prizmkit-test` |
-| `prizmkit-test` | Validate the final reviewed workspace with project-native tests and a consistent terminal report/result pair. | `TEST_PASS` → `prizmkit-retrospective` |
-| `prizmkit-retrospective` | Synchronize durable project documentation or record no documentation change. | `RETRO_COMPLETE` → `prizmkit-committer` |
-| `prizmkit-committer` | Verify gates, request commit confirmation, and create the local commit. | `COMMITTED` |
+| `prizmkit-plan` | Clarify the requirement and create/review `spec.md` and `plan.md`. | `status=completed`, `stage_result=PLAN_READY` → `prizmkit-implement` |
+| `prizmkit-implement` | Execute the plan tasks and record completion. | `status=completed`, `stage_result=IMPLEMENTED` → `prizmkit-code-review` |
+| `prizmkit-code-review` | Main Agent reviews, repairs, verifies, and loops until convergence. | `status=completed`, `stage_result=REVIEW_PASS` → `prizmkit-test` |
+| `prizmkit-test` | Validate the final reviewed workspace with project-native tests and a consistent terminal report/result pair. | `status=completed`, `stage_result=TEST_PASS` → `prizmkit-retrospective` |
+| `prizmkit-retrospective` | Synchronize durable project documentation or record no documentation change. | `status=completed`, `stage_result=RETRO_COMPLETE` → `prizmkit-committer` |
+| `prizmkit-committer` | Verify gates, request commit confirmation, and create the local commit. | `status=completed`, `stage_result=COMMITTED` |
 
 ### `prizmkit-workflow`
 

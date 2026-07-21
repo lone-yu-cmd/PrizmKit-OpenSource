@@ -24,7 +24,7 @@ It does not decide which formal gates can be omitted. It verifies that all five 
 
 ## When to Use
 
-- Workflow state reports `RETRO_COMPLETE` with a valid `retrospective-result.json` for the active formal requirement.
+- Workflow state reports `status=completed` with `stage_result=RETRO_COMPLETE` and a valid `retrospective-result.json` for the active formal requirement.
 - An interactive user confirms they want to create the local commit.
 - A trusted headless execution context authorizes an automatic local commit.
 - User says "commit", "submit", "finish", or "done" after the formal gates have completed.
@@ -49,7 +49,7 @@ For a formal requirement, all gates are mandatory:
 | Implement | All required tasks complete and `IMPLEMENTED` |
 | Code review | Final `review-report.md` result `PASS` |
 | Test | Consistent `TEST_PASS` report/result pair for the final reviewed workspace |
-| Retrospective | `retrospective-result.json` with `status=RETRO_COMPLETE` and `result=DOCS_UPDATED` or `result=NO_DOC_CHANGE` |
+| Retrospective | `retrospective-result.json` with workflow `status=completed`, `stage_result=RETRO_COMPLETE`, and artifact `result=DOCS_UPDATED` or `result=NO_DOC_CHANGE` |
 
 The committer must reject a state that merely claims a gate passed when the underlying artifact or current workspace contradicts it. If workflow state is missing, reconstruct it from authoritative artifacts and report the reconstruction before asking for confirmation.
 
@@ -145,7 +145,7 @@ Before the authorization preview, set or validate:
 ```json
 {
   "stage": "committer",
-  "status": "COMMIT_PENDING",
+  "status": "in_progress",
   "stage_result": "COMMIT_PENDING",
   "completed_stages": ["plan", "implement", "code-review", "test", "retrospective"],
   "next_stage": "committer",
@@ -168,7 +168,8 @@ After a successful local commit, update the runtime state to:
 ```json
 {
   "stage": "committer",
-  "status": "COMMITTED",
+  "status": "completed",
+  "stage_result": "COMMITTED",
   "completed_stages": ["plan", "implement", "code-review", "test", "retrospective", "committer"],
   "next_stage": null,
   "resume_from": null

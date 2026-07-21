@@ -68,11 +68,11 @@ class WorkflowContractTests(unittest.TestCase):
     def test_maps_all_three_l1_test_results(self):
         for phrase in [
             "test-result TEST_PASS",
-            "status=TEST_PASS, stage_result=TEST_PASS",
+            "status=completed,  stage_result=TEST_PASS",
             "test-result TEST_NEEDS_FIXES",
-            "status=TEST_NEEDS_FIXES, stage_result=TEST_NEEDS_FIXES",
+            "status=failed,     stage_result=TEST_NEEDS_FIXES",
             "test-result TEST_BLOCKED",
-            "status=TEST_BLOCKED, stage_result=TEST_BLOCKED",
+            "status=failed,     stage_result=TEST_BLOCKED",
         ]:
             self.assertIn(phrase, self.state)
         self.assertNotIn("TEST_FAIL", self.state)

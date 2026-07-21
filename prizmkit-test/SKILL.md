@@ -284,7 +284,7 @@ No conditional pass exists.
 
 ## Terminal Report and Result
 
-Read `${SKILL_DIR}/references/test-report-template.md` before finalization. Write `test-report.md` and `test-result.json` together for every terminal outcome.
+Read `${SKILL_DIR}/references/test-report-template.md` before finalization. Write `test-report.md` and `test-result.json` together for every terminal outcome. The report must use the exact canonical `## Final Result` section and `- Result: <TEST_*>` marker from that template; do not rename it to `Terminal Result`, `Final Decision`, or another heading.
 
 `test-result.json` is a terminal projection, not a checkpoint:
 

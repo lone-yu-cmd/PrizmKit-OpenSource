@@ -102,7 +102,8 @@ Write `{artifact_dir}/retrospective-result.json` for every formal requirement:
 
 ```json
 {
-  "status": "RETRO_COMPLETE",
+  "status": "completed",
+  "stage_result": "RETRO_COMPLETE",
   "result": "DOCS_UPDATED",
   "reason": "Durable module interfaces and traps changed",
   "review_verdict": "PASS",
@@ -110,7 +111,7 @@ Write `{artifact_dir}/retrospective-result.json` for every formal requirement:
 }
 ```
 
-`status=RETRO_COMPLETE` is the stable completion status. `result` must be exactly `DOCS_UPDATED` or `NO_DOC_CHANGE`; do not use either result as a substitute for completion status. Use `result=NO_DOC_CHANGE` with a concrete reason when no documentation update is warranted. This artifact is the retrospective gate evidence consumed by the committer and external automation; workflow state alone does not prove completion.
+`status=completed` is the stable lifecycle status. `stage_result=RETRO_COMPLETE` marks successful retrospective completion; `result` must be exactly `DOCS_UPDATED` or `NO_DOC_CHANGE`. Use `result=NO_DOC_CHANGE` with a concrete reason when no documentation update is warranted. This artifact is the retrospective gate evidence consumed by the committer and external automation; workflow state alone does not prove completion.
 
 ## Workflow State and Handoff
 
@@ -121,14 +122,15 @@ On successful completion, update `.prizmkit/state/workflows/<requirement-slug>.j
 ```json
 {
   "stage": "retrospective",
-  "status": "RETRO_COMPLETE",
+  "status": "completed",
+  "stage_result": "RETRO_COMPLETE",
   "completed_stages": ["plan", "implement", "code-review", "test", "retrospective"],
   "next_stage": "committer",
   "resume_from": "prizmkit-committer"
 }
 ```
 
-Use `status=RETRO_COMPLETE` for both successful outcomes, with `result=DOCS_UPDATED` when durable docs changed or `result=NO_DOC_CHANGE` when the stage completed without a docs update. Both result values permit the commit stage.
+Use `status=completed` and `stage_result=RETRO_COMPLETE` for both successful outcomes, with `result=DOCS_UPDATED` when durable docs changed or `result=NO_DOC_CHANGE` when the stage completed without a docs update. Both result values permit the commit stage.
 
 If documentation validation or synchronization cannot safely complete, return `RETRO_BLOCKED`, do not commit, and provide the exact recovery entry.
 

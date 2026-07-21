@@ -45,7 +45,7 @@ Every consumer compares workflow state with the skill-owned artifacts and curren
   "artifact_dir": ".prizmkit/specs/example",
   "orchestrator": "prizmkit-workflow",
   "stage": "test",
-  "status": "TEST_PASS",
+  "status": "completed",
   "stage_result": "TEST_PASS",
   "completed_stages": ["plan", "implement", "code-review", "test"],
   "repair_scope": null,
@@ -63,13 +63,15 @@ Every consumer compares workflow state with the skill-owned artifacts and curren
 | `artifact_dir` | Generic requirement artifact root reused by every stage. |
 | `orchestrator` | Semantic coordinator identifier, or null for direct stage use. |
 | `stage` | Stage that most recently wrote state. |
-| `status` | Lifecycle progression status, distinct from `stage_result`. |
-| `stage_result` | Domain result such as `PASS`, `NEEDS_FIXES`, `TEST_*`, `DOCS_UPDATED`, or `NO_DOC_CHANGE`. |
+| `status` | Lifecycle status: `pending`, `in_progress`, `completed`, `failed`, or `skipped`. |
+| `stage_result` | Domain result for the current stage, such as `PLAN_READY`, `IMPLEMENTED`, `REVIEW_PASS`, `REVIEW_NEEDS_FIXES`, `TEST_*`, `RETRO_COMPLETE`, or `COMMITTED`. |
 | `completed_stages` | Ordered stages completed for this requirement. |
 | `repair_scope` | Optional caller-owned routing scope. The test skill reports high-risk repairs through `test-result.json` instead of scheduling another stage. |
 | `repair_round` | Optional outer cross-stage repair round, from 0 through 3. It is not a test-internal repair counter. |
 | `next_stage` | Next semantic stage, or null when stopped. |
 | `resume_from` | Exact atomic skill that can resume, or null when none is selected. |
+
+`status` and `stage_result` are deliberately separate. Lifecycle status values must never be replaced with domain result values.
 
 ## Lifecycle and Result Mappings
 
@@ -83,17 +85,27 @@ PLAN_READY
 → COMMITTED
 ```
 
-No formal stage is silently optional. Domain artifacts map as follows:
+No formal stage is silently optional. Domain artifacts map to workflow state as follows:
 
 ```text
-review-report PASS               → status=REVIEW_PASS, stage_result=PASS
-review-report NEEDS_FIXES        → status=REVIEW_NEEDS_FIXES, stage_result=NEEDS_FIXES
-test-result TEST_PASS            → status=TEST_PASS, stage_result=TEST_PASS
-test-result TEST_NEEDS_FIXES     → status=TEST_NEEDS_FIXES, stage_result=TEST_NEEDS_FIXES
-test-result TEST_BLOCKED         → status=TEST_BLOCKED, stage_result=TEST_BLOCKED
-retrospective DOCS_UPDATED       → status=RETRO_COMPLETE, stage_result=DOCS_UPDATED
-retrospective NO_DOC_CHANGE      → status=RETRO_COMPLETE, stage_result=NO_DOC_CHANGE
+plan PLAN_READY                  → status=completed,  stage_result=PLAN_READY
+plan PLAN_BLOCKED                → status=failed,     stage_result=PLAN_BLOCKED
+implementation IMPLEMENTED       → status=completed,  stage_result=IMPLEMENTED
+implementation repair/block      → status=failed,     stage_result=IMPLEMENT_REPAIR or IMPLEMENT_BLOCKED
+review-report PASS               → status=completed,  stage_result=REVIEW_PASS
+review-report NEEDS_FIXES        → status=failed,     stage_result=REVIEW_NEEDS_FIXES
+test-result TEST_PASS            → status=completed,  stage_result=TEST_PASS
+test-result TEST_NEEDS_FIXES     → status=failed,     stage_result=TEST_NEEDS_FIXES
+test-result TEST_BLOCKED         → status=failed,     stage_result=TEST_BLOCKED
+retrospective DOCS_UPDATED       → status=completed,  stage_result=RETRO_COMPLETE
+retrospective NO_DOC_CHANGE      → status=completed,  stage_result=RETRO_COMPLETE
+retrospective blocked            → status=failed,     stage_result=RETRO_BLOCKED
+commit authorization pending     → status=in_progress, stage_result=COMMIT_PENDING
+local commit confirmed           → status=completed,  stage_result=COMMITTED
+commit blocked                   → status=failed,     stage_result=COMMIT_BLOCKED
 ```
+
+`DOCS_UPDATED` and `NO_DOC_CHANGE` remain retrospective artifact `result` values. The workflow `stage_result` is the retrospective stage result `RETRO_COMPLETE`.
 
 `TEST_PASS` requires both `test-report.md` and a consistent `test-result.json`. No manifest, attestation, evidence package, or test-internal checkpoint is part of this contract.
 

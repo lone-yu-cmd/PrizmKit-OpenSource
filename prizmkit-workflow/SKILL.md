@@ -92,12 +92,12 @@ Expected transitions:
 
 | Stage | Required success | Next stage |
 |---|---|---|
-| `prizmkit-plan` | `PLAN_READY` | `prizmkit-implement` |
-| `prizmkit-implement` | `IMPLEMENTED` | `prizmkit-code-review` |
-| `prizmkit-code-review` | `REVIEW_PASS` | `prizmkit-test` |
-| `prizmkit-test` | `TEST_PASS` | `prizmkit-retrospective` |
-| `prizmkit-retrospective` | `status=RETRO_COMPLETE` with result `DOCS_UPDATED` or `NO_DOC_CHANGE` | `prizmkit-committer` |
-| `prizmkit-committer` | explicit interactive confirmation, then `COMMITTED` | end |
+| `prizmkit-plan` | `status=completed`, `stage_result=PLAN_READY` | `prizmkit-implement` |
+| `prizmkit-implement` | `status=completed`, `stage_result=IMPLEMENTED` | `prizmkit-code-review` |
+| `prizmkit-code-review` | `status=completed`, `stage_result=REVIEW_PASS` | `prizmkit-test` |
+| `prizmkit-test` | `status=completed`, `stage_result=TEST_PASS` | `prizmkit-retrospective` |
+| `prizmkit-retrospective` | `status=completed`, `stage_result=RETRO_COMPLETE`, with artifact result `DOCS_UPDATED` or `NO_DOC_CHANGE` | `prizmkit-committer` |
+| `prizmkit-committer` | explicit interactive confirmation, then `status=completed` with `stage_result=COMMITTED` | end |
 
 `TEST_NOT_APPLICABLE` is not a valid lifecycle success. Lightweight changes must execute deterministic verification and return `TEST_PASS`.
 
@@ -231,18 +231,18 @@ At successful completion, report:
 WORKFLOW_COMPLETE
 artifact_dir: <path>
 stages:
-  - PLAN_READY
-  - IMPLEMENTED
-  - REVIEW_PASS
-  - TEST_PASS
-  - RETRO_COMPLETE (DOCS_UPDATED | NO_DOC_CHANGE)
-  - COMMITTED
+  - status=completed, stage_result=PLAN_READY
+  - status=completed, stage_result=IMPLEMENTED
+  - status=completed, stage_result=REVIEW_PASS
+  - status=completed, stage_result=TEST_PASS
+  - status=completed, stage_result=RETRO_COMPLETE (result=DOCS_UPDATED | NO_DOC_CHANGE)
+  - status=completed, stage_result=COMMITTED
 commit: <hash>
 push: not performed automatically
 next_action: invoke /prizmkit-deploy separately if deployment is needed
 ```
 
-If the user declines interactive commit confirmation, report `COMMIT_PENDING` rather than `WORKFLOW_COMPLETE` and provide the exact `/prizmkit-committer` resume entry.
+If the user declines interactive commit confirmation, report `status=in_progress`, `stage_result=COMMIT_PENDING` rather than `WORKFLOW_COMPLETE` and provide the exact `/prizmkit-committer` resume entry.
 
 If blocked, report:
 

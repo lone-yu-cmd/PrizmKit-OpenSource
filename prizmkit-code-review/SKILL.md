@@ -152,8 +152,8 @@ On `PASS`, update workflow state:
 ```json
 {
   "stage": "code-review",
-  "status": "REVIEW_PASS",
-  "stage_result": "PASS",
+  "status": "completed",
+  "stage_result": "REVIEW_PASS",
   "completed_stages": ["plan", "implement", "code-review"],
   "next_stage": "test",
   "resume_from": "prizmkit-test"
@@ -165,8 +165,8 @@ On `NEEDS_FIXES` caused by code findings, update workflow state:
 ```json
 {
   "stage": "code-review",
-  "status": "REVIEW_NEEDS_FIXES",
-  "stage_result": "NEEDS_FIXES",
+  "status": "failed",
+  "stage_result": "REVIEW_NEEDS_FIXES",
   "repair_scope": "production",
   "next_stage": "implement",
   "resume_from": "prizmkit-implement"
