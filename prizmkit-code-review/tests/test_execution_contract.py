@@ -66,8 +66,8 @@ class ExecutionContractTests(unittest.TestCase):
             "Do not create, schedule, resume, continue, request, or coordinate another execution unit",
             "Do not ask the Main Agent to create a helper",
             "Do not modify, create, delete, rename, stage, commit, or otherwise mutate files",
-            "Do not execute commands, tests, builds, network calls",
-            "Do not perform broad repository discovery or a full repository scan",
+            "Do not execute shell, Git, tests, builds, network calls, external processes",
+            "Do not perform unconditional repository discovery or a full repository scan",
             "Do not invent an issue merely to return feedback",
             "Do not expose private reasoning traces",
         ]
@@ -78,30 +78,33 @@ class ExecutionContractTests(unittest.TestCase):
         required = [
             "all-or-nothing",
             "read-only",
-            "mutation: unavailable",
-            "arbitrary_command_execution: unavailable",
+            "concurrency: at-most-one-active-reviewer",
+            "mutation: structurally-unavailable",
+            "command_execution: structurally-unavailable",
+            "network_access: structurally-unavailable",
+            "external_process_execution: structurally-unavailable",
             "downstream_execution: structurally-unavailable",
-            "context_continuation: same-unit-native-resume",
+            "continuation: prefer-same-unit",
+            "replacement: compliant-replacement-allowed",
             "model_configuration: inherit-current-session",
             "any capability is missing or cannot be proven",
-            "do not create a Reviewer",
+            "create no Reviewer",
             "Prompt instructions cannot satisfy",
             "must not branch on platform identity",
         ]
         for phrase in required:
             self.assertIn(phrase, self.independent_review)
 
-    def test_reviewer_uses_complete_bounded_current_change(self):
+    def test_reviewer_uses_complete_current_change_and_exact_identity(self):
         required = [
-            "staged tracked changes",
-            "unstaged tracked changes",
-            "untracked files",
-            "deleted and renamed files",
-            "exact changed-file manifest",
-            "targeted unchanged callers",
-            "Reviewer does not run Git commands",
-            "stale",
-            "mixed-round",
+            "artifact_dir",
+            "spec_path",
+            "plan_path",
+            "checkout_root",
+            "staged and unstaged tracked changes",
+            "untracked, deleted, and renamed content",
+            "concrete coupling",
+            "Reviewer may use structurally read-only checkout access",
             "REVIEW_BLOCKED",
         ]
         for phrase in required:
@@ -124,12 +127,14 @@ class ExecutionContractTests(unittest.TestCase):
         for forbidden in ("Severity:", "Confidence:", "Dimension:"):
             self.assertNotIn(forbidden, output_protocol)
 
-    def test_same_reviewer_continuation_and_five_response_budget(self):
+    def test_continuation_replacement_and_five_response_budget(self):
         required = [
             "maximum five responses",
-            "exact same Reviewer",
-            "Never create a replacement Reviewer",
-            "summary",
+            "prefer native continuation",
+            "compliant replacement",
+            "complete current state",
+            "does not reset the five-response budget",
+            "At most one replacement may be created in the stage",
             "fifth response",
             "no sixth response",
             "targeted verification",
@@ -138,12 +143,12 @@ class ExecutionContractTests(unittest.TestCase):
         for phrase in required:
             self.assertIn(phrase, self.independent_review)
 
-    def test_resume_failure_uses_local_fallback_without_replacement(self):
+    def test_continuation_failure_uses_replacement_or_local_fallback(self):
         required = [
-            "resume fails",
-            "Never create a replacement Reviewer",
-            "rerun the Main-Agent review",
-            "record the downgrade",
+            "continuation and compliant replacement both fail",
+            "Never create a weaker Reviewer",
+            "rerun Main-Agent review",
+            "record downgrade",
         ]
         for phrase in required:
             self.assertIn(phrase, self.independent_review)

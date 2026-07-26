@@ -15,58 +15,61 @@ Implementation complete
 → PASS or NEEDS_FIXES
 ```
 
-The independent budget does not replace, reduce, or extend the Main-Agent loop. Create at most one Reviewer for this Code Review stage. Never reuse it in another stage.
+The independent budget does not replace, reduce, or extend the Main-Agent loop. Keep at most one Reviewer active, permit at most one replacement for this Code Review stage, and never reuse either unit in another stage.
 
 ## Host Capability Gate
 
-The gate is all-or-nothing. Before creating a Reviewer, the host must prove this semantic execution contract:
+The gate is all-or-nothing. Before creating a Reviewer, inspect the current host's actual execution-unit configuration and prove this semantic contract without relying on platform identity or implementation-specific parameters:
 
 ```yaml
 execution_unit:
-  count: 1
-  access: read-only
-  mutation: unavailable
-  arbitrary_command_execution: unavailable
+  concurrency: at-most-one-active-reviewer
+  workspace_access: read-only-active-checkout
+  mutation: structurally-unavailable
+  command_execution: structurally-unavailable
+  network_access: structurally-unavailable
+  external_process_execution: structurally-unavailable
   downstream_execution: structurally-unavailable
-  context_continuation: same-unit-native-resume
-  workspace_observation: bounded-active-checkout-input
   model_configuration: inherit-current-session
+  scope_expansion: concrete-coupling-only
+  continuation: prefer-same-unit
+  replacement: compliant-replacement-allowed
 ```
 
 Rules:
 
 - Prompt instructions cannot satisfy a missing structural capability.
-- The decision must not branch on platform identity, tool name, execution-unit type name, adapter output, or a platform allowlist.
-- If any capability is missing or cannot be proven, do not create a Reviewer. Use Strict Downgrade.
-- A general execution unit with a prompt saying "do not mutate or delegate" is not eligible when those capabilities remain available.
-- The Reviewer inherits the current session's model configuration. Do not add a separate model-selection contract.
+- The decision must not branch on platform identity, provider, tool name, command name, execution-unit type name, adapter output, CLI parameter, or an allowlist.
+- The Reviewer cannot create, modify, delete, rename, stage, or commit files; execute shell, Git, tests, builds, network calls, or external processes; or create, invoke, resume, or coordinate downstream execution units.
+- A general execution unit that merely promises to remain read-only is ineligible while prohibited capabilities remain available.
+- The Reviewer inherits the current session's model configuration.
+- If any capability is missing or cannot be proven, create no Reviewer and use Strict Downgrade.
 
 ## Review Input
 
-Before each response, the Main Agent captures one bounded review input that is immutable for one response:
+Resolve exact requirement identity from workflow state or explicit handoff on every response:
 
 ```text
-review-input
-├── manifest: input identity, response number, exact changed paths, states, and consistency markers
-├── context: requirement, plan decisions, applicable rules, and prior adjudication on resume
-└── payload: complete captured current change plus targeted supporting material
+artifact_dir: [EXACT_ARTIFACT_DIR]
+spec_path: [EXACT_SPEC_PATH]
+plan_path: [EXACT_PLAN_PATH]
+checkout_root: [ACTIVE_CHECKOUT_ROOT]
 ```
 
-The Code payload contains a logical representation of:
+These paths remain authoritative even when ignored by Git. Never ask the Reviewer to discover a latest artifact or guess among multiple `spec.md` and `plan.md` files.
 
-- staged tracked changes;
-- unstaged tracked changes;
-- untracked files;
-- deleted and renamed files;
-- the exact changed-file manifest;
-- requirement goals and acceptance criteria;
-- relevant plan decisions;
-- applicable project rules and Prizm traps;
-- targeted unchanged callers, dependents, contracts, schemas, or tests implicated by changed interfaces.
+The Main Agent supplies:
 
-The Main Agent captures authoritative workspace state. The Reviewer does not run Git commands. Do not provide broad repository access as a substitute for complete current-change capture. The representation may use host-native immutable content or a read-only temporary payload outside the project change set; the protocol does not require a particular temporary path or command.
+- original requirement and confirmed clarifications;
+- exact artifact, spec, and plan paths plus current contents;
+- current workspace status;
+- staged and unstaged tracked changes;
+- relevant untracked, deleted, and renamed content;
+- implementation task completion and targeted verification results;
+- response number and total budget;
+- prior adjudication, actual repairs, and repair verification on continuation or replacement.
 
-Before ordinary review, the Reviewer verifies that manifest, context, and payload agree. Missing paths, unexplained changed files, stale content, or mixed-round input produces `REVIEW_BLOCKED`, never partial success.
+The Main Agent runs Git and captures authoritative current-change state. The Reviewer may use structurally read-only checkout access to inspect unchanged callers, consumers, contracts, schemas, types, configurations, fixtures, or tests only when concrete coupling to this requirement justifies it. It must not run commands or perform an unconditional repository-wide scan. Missing or inconsistent required input produces `REVIEW_BLOCKED`, never partial success.
 
 ## Initial Reviewer Prompt
 
@@ -80,11 +83,13 @@ Objectively determine whether the Main Agent's complete current implementation c
 
 Response:
 This is response [RESPONSE_NUMBER] of a maximum five responses.
-Review-input identity: [INPUT_ID]
-Manifest: [MANIFEST]
-Context: [CONTEXT]
-Payload: [PAYLOAD]
-Permitted targeted paths, if represented separately: [TARGETED_PATHS_OR_NONE]
+Artifact directory: [ARTIFACT_DIR]
+Specification path and content: [SPEC_PATH_AND_CONTENT]
+Plan path and content: [PLAN_PATH_AND_CONTENT]
+Checkout root: [CHECKOUT_ROOT]
+Requirement and clarifications: [REQUIREMENT_CONTEXT]
+Complete current change: [CURRENT_CHANGE]
+Implementation and verification context: [IMPLEMENTATION_CONTEXT]
 
 Execution boundaries:
 - Complete this review personally.
@@ -92,9 +97,9 @@ Execution boundaries:
 - Do not ask the Main Agent to create a helper.
 - Do not re-enter orchestration, delegation, another review workflow, or an equivalent process.
 - Do not modify, create, delete, rename, stage, commit, or otherwise mutate files.
-- Do not execute commands, tests, builds, network calls, or any operation that can change state.
-- Read only the bounded review input and explicitly permitted targeted paths.
-- Do not perform broad repository discovery or a full repository scan.
+- Do not execute shell, Git, tests, builds, network calls, external processes, or any operation that can change state.
+- Use read-only checkout access beyond changed files only for concrete module, caller, consumer, schema, type, configuration, fixture, or test coupling.
+- Do not perform unconditional repository discovery or a full repository scan.
 - Report only corrections supported by a concrete target and evidence.
 - Do not invent an issue merely to return feedback.
 - Return REVIEW_BLOCKED rather than delegate or provide an incomplete success result.
@@ -109,17 +114,20 @@ Return exactly one result using the Reviewer Output Protocol.
 
 ## Resume Prompt
 
-Resume the exact same Reviewer; do not create a new Reviewer with this text. Instantiate the bracketed fields.
+Prefer native continuation of the same Reviewer. If unavailable, use this complete prompt for one compliant replacement under the replacement rules below. Instantiate the bracketed fields.
 
 ```text
 Continue as the same independent Code Reviewer.
 
 Response:
 This is response [RESPONSE_NUMBER] of a maximum five responses.
-New review-input identity: [INPUT_ID]
-New manifest: [MANIFEST]
-Current context: [CONTEXT]
-Current payload: [PAYLOAD]
+Continuation mode: [NATIVE_OR_REPLACEMENT]
+Artifact directory: [ARTIFACT_DIR]
+Specification path and content: [SPEC_PATH_AND_CONTENT]
+Plan path and content: [PLAN_PATH_AND_CONTENT]
+Checkout root: [CHECKOUT_ROOT]
+Requirement and clarifications: [REQUIREMENT_CONTEXT]
+Complete current change: [CURRENT_CHANGE]
 Previously accepted corrections: [ACCEPTED_CORRECTIONS_OR_NONE]
 Repairs actually made: [REPAIRS_OR_NONE]
 Main-Agent targeted verification: [VERIFICATION]
@@ -206,28 +214,24 @@ Independent review converges normally when:
 4. Validate the result against the Reviewer Output Protocol and append an independent-review round event.
 5. Adjudicate every correction and append independent-adjudication events. Any unresolved item returns `NEEDS_FIXES`.
 6. For accepted corrections, the Main Agent repairs the active checkout, runs targeted verification, and inspects the complete resulting change.
-7. If one or more responses remain, capture the complete fresh current change and resume the exact same Reviewer with the Resume Prompt. Do not restart the complete ten-round Main-Agent loop after every ordinary independent correction.
-8. If the fifth response causes a repair, no sixth response is allowed. Run targeted verification, inspect the complete final change, record final-budget handling and `Final State Independently Rechecked: no`, and do not exceed the response budget.
-9. End the Reviewer when review converges, reaches the response limit, fails irrecoverably, or the stage becomes blocked. Explicitly terminate it when the host safely supports that operation; otherwise stop sending messages.
-10. Complete the existing final verification and append exactly one `## Final Result` with `PASS` or `NEEDS_FIXES`.
+7. If responses remain, prepare the complete latest Code input and prefer native continuation. If unavailable or failed and no replacement has been used in this stage, create one compliant replacement only after the prior Reviewer is no longer active; reapply the full gate and continue with the next response number. Do not restart the complete ten-round Main-Agent loop after every ordinary independent correction.
+8. A replacement receives complete current state and all prior adjudication, never only a conversation summary. Replacement does not reset the five-response budget. At most one replacement may be created in the stage, and only one Reviewer may be active.
+9. If the fifth response causes a repair, no sixth response is allowed. Run targeted verification, inspect the complete final change, record final-budget handling and `Final State Independently Rechecked: no`, and do not exceed the response budget.
+10. End the Reviewer when review converges, reaches the response limit, fails irrecoverably, or the stage becomes blocked. Explicitly terminate it when the host safely supports that operation; otherwise stop sending messages.
+11. Complete the existing final verification and append exactly one `## Final Result` with `PASS` or `NEEDS_FIXES`.
 
 ## Strict Downgrade
 
-Use strict downgrade in any of these cases:
-
-- a required capability is unavailable or unproven before creation;
-- Reviewer creation fails;
-- the exact same Reviewer cannot be resumed or resume fails;
-- execution-unit integrity becomes uncertain.
+Use Strict Downgrade when a required capability is unavailable or unproven, creation fails before a valid response, prohibited capability appears, the prior Reviewer may still be active, or no compliant continuation/replacement can be established.
 
 Behavior:
 
-1. Never create a weaker or replacement Reviewer.
-2. Never create a fresh Reviewer with a summary of the prior conversation; a summary is context, not native continuation.
+1. Never create a weaker Reviewer whose prohibited capabilities remain available.
+2. Prefer native continuation, but permit a fresh compliant replacement with the complete latest input and prior adjudication; a summary alone is insufficient.
 3. When no Reviewer is created, record the downgrade and continue from the completed Main-Agent review if it remains valid.
-4. When creation fails before any response, record the failure and preserve the completed Main-Agent review.
-5. When resume fails after an accepted repair, Never create a replacement Reviewer; rerun the Main-Agent review over the repair, within the existing ten-round safety fuse, record the downgrade and fallback, and return `NEEDS_FIXES` if review cannot establish convergence.
-6. Reviewer input problems may be corrected and sent to the same Reviewer only while response budget and native continuation remain available. Otherwise downgrade.
+4. Creation failure without a response does not consume response budget; a produced malformed response follows the existing response-budget rule.
+5. When continuation and compliant replacement both fail after a repair, rerun Main-Agent review over the repair within the existing ten-round safety fuse, record downgrade and fallback, and return `NEEDS_FIXES` if convergence cannot be established.
+6. Reviewer input problems may be corrected within remaining shared budget using native continuation or a compliant replacement.
 7. Report temporary input-cleanup failures honestly; cleanup failure does not change an otherwise verified review result.
 
 Strict downgrade is visible reduced assurance, not a new lifecycle verdict and not permission to weaken the gate.
@@ -238,6 +242,7 @@ Use the existing append-only `review-report.md` lifecycle and renderer events:
 
 - `independent-review-round`: response number `1..5`, result, correction count, adjudication counts, and next action;
 - `independent-adjudication`: correction summary, `accepted | rejected | unresolved`, evidence, and actual modification;
-- `independent-review-downgrade`: reason, Main-Agent fallback, and whether the final state was independently rechecked.
+- `independent-review-downgrade`: reason, Main-Agent fallback, and whether the final state was independently rechecked;
+- capability basis, continuation mode (`native`, `replacement`, `mixed`, or `not-applicable`), and replacement count.
 
 The report remains the only persisted Code Review artifact. It ends with exactly one `## Final Result`; valid final verdicts remain `PASS | NEEDS_FIXES`.

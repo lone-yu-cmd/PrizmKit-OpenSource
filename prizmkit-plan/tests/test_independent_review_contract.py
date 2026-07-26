@@ -47,8 +47,8 @@ class IndependentPlanReviewContractTests(unittest.TestCase):
             "Do not create, schedule, resume, continue, request, or coordinate another execution unit",
             "Do not ask the Main Agent to create a helper",
             "Do not modify, create, delete, rename, stage, commit, or otherwise mutate files",
-            "Do not execute commands, tests, builds, network calls",
-            "Do not perform broad repository discovery or a full repository scan",
+            "Do not execute shell, Git, tests, builds, network calls, external processes",
+            "Do not inspect implementation code or perform repository discovery",
             "Do not invent an issue merely to return feedback",
             "Do not expose private reasoning traces",
         ]
@@ -59,10 +59,14 @@ class IndependentPlanReviewContractTests(unittest.TestCase):
         required = [
             "all-or-nothing",
             "read-only",
-            "mutation: unavailable",
-            "arbitrary_command_execution: unavailable",
+            "concurrency: at-most-one-active-reviewer",
+            "mutation: structurally-unavailable",
+            "command_execution: structurally-unavailable",
+            "network_access: structurally-unavailable",
+            "external_process_execution: structurally-unavailable",
             "downstream_execution: structurally-unavailable",
-            "context_continuation: same-unit-native-resume",
+            "continuation: prefer-same-unit",
+            "replacement: compliant-replacement-allowed",
             "model_configuration: inherit-current-session",
             "any capability is missing or cannot be proven",
             "do not create a Reviewer",
@@ -72,17 +76,15 @@ class IndependentPlanReviewContractTests(unittest.TestCase):
         for phrase in required:
             self.assertIn(phrase, self.independent_review)
 
-    def test_input_is_bounded_immutable_and_consistency_checked(self):
+    def test_input_has_exact_identity_and_planning_only_scope(self):
         required = [
-            "manifest",
-            "context",
-            "payload",
-            "bounded",
-            "immutable for one response",
-            "stale",
-            "mixed-round",
+            "artifact_dir",
+            "spec_path",
+            "plan_path",
+            "original requirement and confirmed clarifications",
+            "The Plan Reviewer receives only",
+            "does not receive or inspect implementation diffs",
             "REVIEW_BLOCKED",
-            "only the source or contract paths needed",
         ]
         for phrase in required:
             self.assertIn(phrase, self.independent_review)
@@ -114,12 +116,14 @@ class IndependentPlanReviewContractTests(unittest.TestCase):
         for phrase in required:
             self.assertIn(phrase, self.independent_review)
 
-    def test_same_reviewer_continuation_and_two_response_budget(self):
+    def test_continuation_replacement_and_two_response_budget(self):
         required = [
             "maximum two responses",
-            "exact same Reviewer",
-            "Never create a replacement Reviewer",
-            "summary",
+            "prefer native continuation",
+            "compliant replacement",
+            "complete current content",
+            "does not reset the two-response budget",
+            "At most one replacement may be created in the stage",
             "second response",
             "no third response",
             "targeted Plan/Spec verification",
@@ -134,8 +138,8 @@ class IndependentPlanReviewContractTests(unittest.TestCase):
             "no Reviewer is created",
             "record the downgrade",
             "completed Main-Agent review",
-            "resume fails",
-            "Never create a replacement Reviewer",
+            "continuation and compliant replacement both fail",
+            "Never create a weaker Reviewer",
             "rerun the local Plan/Spec review",
         ]
         for phrase in required:
@@ -146,6 +150,8 @@ class IndependentPlanReviewContractTests(unittest.TestCase):
             "## Independent Plan Review",
             "Capability Gate: <ENABLED | DOWNGRADED>",
             "Reviewer Responses: <0..2>",
+            "Continuation Mode: <native | replacement | mixed | not-applicable>",
+            "Reviewer Replacements: <0..1>",
             "Final State Independently Rechecked: <yes | no | not applicable>",
             "### Adjudication",
             "Decision: <accepted | rejected | unresolved>",

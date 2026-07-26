@@ -15,54 +15,57 @@ Draft spec.md and plan.md
 → PLAN_READY or PLAN_BLOCKED
 ```
 
-The independent budget does not replace, reduce, or extend the local review budget. Create at most one Reviewer for the Plan stage. Never reuse it in another stage.
+The independent budget does not replace, reduce, or extend the local review budget. Keep at most one Reviewer active, permit at most one replacement for the Plan stage, and never reuse either unit in another stage.
 
 ## Host Capability Gate
 
-The gate is all-or-nothing. Before creating a Reviewer, the host must prove this semantic execution contract:
+The gate is all-or-nothing. Before creating a Reviewer, inspect the current host's actual execution-unit configuration and prove this semantic contract without relying on platform identity or implementation-specific parameters:
 
 ```yaml
 execution_unit:
-  count: 1
-  access: read-only
-  mutation: unavailable
-  arbitrary_command_execution: unavailable
+  concurrency: at-most-one-active-reviewer
+  workspace_access: planning-input-read-only
+  mutation: structurally-unavailable
+  command_execution: structurally-unavailable
+  network_access: structurally-unavailable
+  external_process_execution: structurally-unavailable
   downstream_execution: structurally-unavailable
-  context_continuation: same-unit-native-resume
-  workspace_observation: bounded-active-checkout-input
   model_configuration: inherit-current-session
+  continuation: prefer-same-unit
+  replacement: compliant-replacement-allowed
 ```
 
 Rules:
 
 - Prompt instructions cannot satisfy a missing structural capability.
-- The decision must not branch on platform identity, tool name, execution-unit type name, adapter output, or a platform allowlist.
+- The decision must not branch on platform identity, provider, tool name, command name, execution-unit type name, adapter output, CLI parameter, or an allowlist.
+- The Reviewer cannot create, modify, delete, rename, stage, or commit files; execute shell, Git, tests, builds, network calls, or external processes; or create, invoke, resume, or coordinate downstream execution units.
 - If any capability is missing or cannot be proven, do not create a Reviewer. Use Strict Downgrade.
-- A general execution unit with a prompt saying "do not mutate or delegate" is not eligible when those capabilities remain available.
+- A general execution unit that merely promises to stay read-only is ineligible while prohibited capabilities remain available.
 - The Reviewer inherits the current session's model configuration. Do not add a separate model-selection contract.
 
 ## Review Input
 
-Before each response, the Main Agent captures one bounded review input that is immutable for one response:
+Resolve and provide exact requirement identity on every response:
 
 ```text
-review-input
-├── manifest: input identity, response number, project-relative paths, states, and consistency markers
-├── context: requirement, confirmed clarifications, relevant rules, and prior adjudication on resume
-└── payload: current spec.md, current plan.md, and only targeted supporting material
+artifact_dir: [EXACT_ARTIFACT_DIR]
+spec_path: [EXACT_SPEC_PATH]
+plan_path: [EXACT_PLAN_PATH]
 ```
 
-The Plan payload contains:
+The paths come from the current workflow state or explicit handoff even when ignored by Git. Never ask the Reviewer to discover a latest artifact or guess among multiple `spec.md` and `plan.md` files.
 
-- current `spec.md`;
-- current `plan.md`, including tasks;
-- original requirement and confirmed clarification decisions;
-- relevant project rules and Prizm documentation;
-- only the source or contract paths needed to verify concrete planning assumptions.
+The Plan Reviewer receives only:
 
-Do not provide broad repository access as a substitute for capturing input. The representation may use host-native immutable content or a read-only temporary payload outside the project change set; the protocol does not require a particular temporary path or command.
+- original requirement and confirmed clarifications;
+- exact artifact, spec, and plan paths;
+- current `spec.md` content;
+- current `plan.md` content, including tasks;
+- response number and total response budget;
+- prior planning adjudication and actual planning modifications on continuation or replacement.
 
-Before ordinary review, the Reviewer verifies that manifest, context, and payload agree. Missing content, unexplained entries, stale content, or mixed-round input produces `REVIEW_BLOCKED`, never partial success.
+It does not receive or inspect implementation diffs, production changes, test results, or unrelated checkout content. Missing or inconsistent required content produces `REVIEW_BLOCKED`, never partial success.
 
 ## Initial Reviewer Prompt
 
@@ -76,11 +79,12 @@ Objectively determine whether the Main Agent's current specification and impleme
 
 Response:
 This is response [RESPONSE_NUMBER] of a maximum two responses.
-Review-input identity: [INPUT_ID]
-Manifest: [MANIFEST]
-Context: [CONTEXT]
-Payload: [PAYLOAD]
-Permitted targeted paths, if represented separately: [TARGETED_PATHS_OR_NONE]
+Artifact directory: [ARTIFACT_DIR]
+Specification path: [SPEC_PATH]
+Plan path: [PLAN_PATH]
+Original requirement and confirmed clarifications: [REQUIREMENT_CONTEXT]
+Current specification: [SPEC_CONTENT]
+Current plan: [PLAN_CONTENT]
 
 Execution boundaries:
 - Complete this review personally.
@@ -88,9 +92,9 @@ Execution boundaries:
 - Do not ask the Main Agent to create a helper.
 - Do not re-enter orchestration, delegation, another review workflow, or an equivalent process.
 - Do not modify, create, delete, rename, stage, commit, or otherwise mutate files.
-- Do not execute commands, tests, builds, network calls, or any operation that can change state.
-- Read only the bounded review input and explicitly permitted targeted paths.
-- Do not perform broad repository discovery or a full repository scan.
+- Do not execute shell, Git, tests, builds, network calls, external processes, or any operation that can change state.
+- Read only the supplied planning input at the exact paths and contents identified above.
+- Do not inspect implementation code or perform repository discovery.
 - Report only corrections supported by a concrete target and evidence.
 - Do not invent an issue merely to return feedback.
 - Return REVIEW_BLOCKED rather than delegate or provide an incomplete success result.
@@ -105,17 +109,20 @@ Return exactly one result using the Reviewer Output Protocol.
 
 ## Resume Prompt
 
-Resume the exact same Reviewer; do not create a new Reviewer with this text. Instantiate the bracketed fields.
+Prefer native continuation of the same Reviewer. If unavailable, use this complete prompt to create one compliant replacement under the replacement rules below. Instantiate the bracketed fields.
 
 ```text
 Continue as the same independent Plan Reviewer.
 
 Response:
 This is response [RESPONSE_NUMBER] of a maximum two responses.
-New review-input identity: [INPUT_ID]
-New manifest: [MANIFEST]
-Current context: [CONTEXT]
-Current payload: [PAYLOAD]
+Continuation mode: [NATIVE_OR_REPLACEMENT]
+Artifact directory: [ARTIFACT_DIR]
+Specification path: [SPEC_PATH]
+Plan path: [PLAN_PATH]
+Original requirement and confirmed clarifications: [REQUIREMENT_CONTEXT]
+Current specification: [SPEC_CONTENT]
+Current plan: [PLAN_CONTENT]
 Previously accepted corrections: [ACCEPTED_CORRECTIONS_OR_NONE]
 Modifications actually made: [MODIFICATIONS_OR_NONE]
 Previously rejected corrections and rejection evidence: [REJECTIONS_OR_NONE]
@@ -201,29 +208,24 @@ Independent review converges normally when:
 4. Validate the result against the Reviewer Output Protocol.
 5. Adjudicate every correction. Any unresolved item returns `PLAN_BLOCKED`.
 6. For accepted corrections, the Main Agent modifies `spec.md` and/or `plan.md` and applies the relevant part of the existing verification checklist.
-7. If one response remains, capture fresh input and resume the exact same Reviewer with the Resume Prompt.
-8. If the second response causes a modification, no third response is allowed. Perform targeted Plan/Spec verification, record final-budget handling, and set `Final State Independently Rechecked` to `no`.
-9. Append the terminal `## Independent Plan Review` record. Appending the record itself never triggers another response.
-10. End the Reviewer when review converges, reaches the response limit, fails irrecoverably, or the stage becomes blocked. Explicitly terminate it when the host safely supports that operation; otherwise stop sending messages.
+7. If one response remains, prepare the complete latest Plan input and prefer native continuation. If native continuation is unavailable or fails and no replacement has been used in this stage, create one compliant replacement only after the prior Reviewer is no longer active; reapply the full gate and continue with the next response number.
+8. A replacement receives complete current content and all prior adjudication, never only a conversation summary. Replacement does not reset the two-response budget. At most one replacement may be created in the stage, and only one Reviewer may be active.
+9. If the second response causes a modification, no third response is allowed. Perform targeted Plan/Spec verification, record final-budget handling, and set `Final State Independently Rechecked` to `no`.
+10. Append the terminal `## Independent Plan Review` record. Appending the record itself never triggers another response.
+11. End the Reviewer when review converges, reaches the response limit, fails irrecoverably, or the stage becomes blocked. Explicitly terminate it when the host safely supports that operation; otherwise stop sending messages.
 
 ## Strict Downgrade
 
-Use strict downgrade in any of these cases:
-
-- a required capability is unavailable or unproven before creation;
-- Reviewer creation fails;
-- the exact same Reviewer cannot be resumed or resume fails;
-- execution-unit integrity becomes uncertain.
+Use strict downgrade when a required capability is unavailable or unproven, creation fails before a valid response, prohibited capability appears, the previous Reviewer may still be active, or no compliant continuation/replacement can be established.
 
 Behavior:
 
-1. Never create a weaker or replacement Reviewer.
-2. Never create a fresh Reviewer with a summary of the prior conversation; a summary is context, not native continuation.
+1. Never create a weaker Reviewer whose prohibited capabilities remain available.
+2. Prefer native continuation, but permit a fresh compliant replacement with the complete latest input and prior adjudication; a summary alone is insufficient.
 3. When no Reviewer is created, record the downgrade and continue from the completed Main-Agent review if it remains valid.
-4. When creation fails before any response, record the failure and preserve the completed Main-Agent review.
-5. When resume fails after an accepted modification, Never create a replacement Reviewer; rerun the local Plan/Spec review over the modification within its existing local semantics, record the downgrade and fallback, and return `PLAN_BLOCKED` if that verification cannot establish readiness.
-6. Reviewer input problems may be corrected and sent to the same Reviewer only while response budget and native continuation remain available. Otherwise downgrade.
-7. Report temporary input-cleanup failures honestly; cleanup failure does not change an otherwise verified planning result.
+4. Creation failure without a response does not consume response budget; a produced malformed response follows the existing response-budget rule.
+5. When continuation and compliant replacement both fail after a modification, rerun the local Plan/Spec review over that modification, record the downgrade and fallback, and return `PLAN_BLOCKED` if readiness cannot be established.
+6. Report temporary input-cleanup failures honestly; cleanup failure does not change an otherwise verified planning result.
 
 Strict downgrade is visible reduced assurance, not an error verdict and not permission to weaken the gate.
 
@@ -234,6 +236,7 @@ Append the terminal record shape from `${SKILL_DIR}/assets/plan-template.md` aft
 - `Capability Gate: ENABLED | DOWNGRADED`;
 - a concrete downgrade reason or `none`;
 - Reviewer responses used, from `0` through `2`;
+- continuation mode (`native`, `replacement`, `mixed`, or `not-applicable`) and replacement count;
 - convergence or fallback mode;
 - whether the final state received an independent recheck;
 - every proposed correction, Main-Agent decision, evidence, and actual modification;

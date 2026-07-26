@@ -44,6 +44,10 @@ Within that execution, append sections only. Never edit or replace an earlier pr
 ```markdown
 ## Independent Review Round <N>
 
+- Capability Gate: ENABLED
+- Capability Basis: <platform-neutral structural evidence>
+- Continuation Mode: <native | replacement>
+- Reviewer Replacements: <0..1>
 - Result: <NO_CORRECTION_NEEDED | CORRECTION_NEEDED | REVIEW_BLOCKED>
 - Corrections: <count>
 - Accepted: <count>
@@ -70,7 +74,10 @@ Repeat this section once per proposed correction.
 ```markdown
 ## Independent Review Downgrade
 
-- Reason: <missing capability, creation failure, or native-resume failure>
+- Reason: <missing capability, creation failure, or unavailable compliant continuation/replacement>
+- Capability Basis: <platform-neutral structural evidence or unavailable>
+- Continuation Mode: <native | replacement | mixed | not-applicable>
+- Reviewer Replacements: <0..1>
 - Fallback: <completed Main-Agent review or Main-Agent re-review of repair>
 - Final State Independently Rechecked: <yes | no | not applicable>
 ```

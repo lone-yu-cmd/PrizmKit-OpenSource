@@ -78,8 +78,12 @@ Coverage metrics, when available: <diagnostic values or not collected>. Percenta
 ## Independent Test Review
 
 - Status: completed / downgraded / not_applicable
+- Capability Gate: <ENABLED | DOWNGRADED | NOT_APPLICABLE>
+- Capability Basis: <platform-neutral structural evidence or unavailable>
+- Downgrade Reason: <reason or none>
 - Responses: <0..5>
-- Capability gate or downgrade reason: <reason or none>
+- Continuation Mode: <native | replacement | mixed | not-applicable>
+- Reviewer Replacements: <0..1>
 - Corrections and Main-Agent adjudication: <summary or none>
 - Exact final state independently rechecked: yes / no
 

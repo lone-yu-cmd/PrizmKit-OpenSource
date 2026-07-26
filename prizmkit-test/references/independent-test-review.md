@@ -18,66 +18,62 @@ Main Agent builds and executes project-native tests
 → TEST_PASS | TEST_NEEDS_FIXES | TEST_BLOCKED
 ```
 
-Create at most one Reviewer for this invocation. Reuse the exact same Reviewer through native continuation. Never reuse a Reviewer from another lifecycle stage and never create a replacement with a summary to simulate continuation.
+Keep at most one Reviewer active for this invocation and permit at most one replacement. Prefer native continuation and never reuse a Reviewer from another lifecycle stage. A compliant replacement may continue the same shared response budget only with complete latest state, never only a conversation summary.
 
 ## Host Capability Gate
 
-The gate is all-or-nothing. Before creating a Reviewer, the host must prove this semantic execution contract:
+The gate is all-or-nothing. Before creating a Reviewer, inspect the current host's actual execution-unit configuration and prove this semantic contract without relying on platform identity or implementation-specific parameters:
 
 ```yaml
 execution_unit:
-  count: 1
-  access: read-only
-  mutation: unavailable
-  arbitrary_command_execution: unavailable
+  concurrency: at-most-one-active-reviewer
+  workspace_access: read-only-active-checkout
+  mutation: structurally-unavailable
+  command_execution: structurally-unavailable
+  network_access: structurally-unavailable
+  external_process_execution: structurally-unavailable
   downstream_execution: structurally-unavailable
-  context_continuation: same-unit-native-resume
-  workspace_observation: bounded-active-checkout-input
   model_configuration: inherit-current-session
+  scope_expansion: concrete-coupling-only
+  continuation: prefer-same-unit
+  replacement: compliant-replacement-allowed
 ```
 
 Rules:
 
 - Prompt instructions cannot satisfy a missing structural capability.
-- Do not branch on platform identity, tool name, execution-unit type name, adapter output, or an allowlist.
-- A general execution unit that merely promises not to mutate, execute commands, or delegate is ineligible while those capabilities remain available.
+- Do not branch on platform identity, provider, tool name, command name, execution-unit type name, adapter output, CLI parameter, or an allowlist.
+- The Reviewer cannot create, modify, delete, rename, stage, or commit files; execute shell, Git, tests, builds, network calls, or external processes; or create, invoke, resume, or coordinate downstream execution units.
+- A general execution unit that merely promises to stay read-only is ineligible while prohibited capabilities remain available.
 - The Reviewer inherits the current session's model configuration.
 - If any capability is missing or unproven, create no Reviewer and use Strict Downgrade.
 
-## Bounded Immutable Review Input
+## Stage-Specific Review Input
 
-Before every response, the Main Agent captures a complete input that remains immutable for that response:
+Resolve exact requirement identity from workflow state or explicit handoff on every response:
 
 ```text
-test-review-input
-├── manifest
-│   ├── response number and input identity
-│   ├── exact changed production and test paths
-│   ├── relevant unchanged path inventory
-│   └── consistency markers
-├── change context
-│   ├── requirement and acceptance criteria
-│   ├── current production change
-│   └── applicable project rules
-├── coverage context
-│   ├── affected business module
-│   ├── observable behaviors
-│   ├── risk and boundary assessment
-│   └── Regression Ring
-├── test context
-│   ├── existing, added, and modified tests
-│   ├── fixtures, mocks, and contracts
-│   ├── selected test layers
-│   └── native execution results
-└── targeted supporting context
-    ├── relevant callers and consumers
-    ├── shared schemas and contracts
-    └── necessary public official contract excerpts
+artifact_dir: [EXACT_ARTIFACT_DIR]
+spec_path: [EXACT_SPEC_PATH]
+plan_path: [EXACT_PLAN_PATH]
+checkout_root: [ACTIVE_CHECKOUT_ROOT]
 ```
 
-The Reviewer does not run Git, tests, builds, network calls, or broad repository discovery. The Main Agent captures authoritative current state. Do not include secrets, credentials, production data, or unrelated private repository content.
+These paths remain authoritative even when ignored by Git. Never ask the Reviewer to discover a latest artifact or guess among multiple `spec.md` and `plan.md` files.
 
-Before ordinary review, the Reviewer verifies that manifest and content agree. Missing paths, unexplained changed files, stale content, or mixed-response input produces `REVIEW_BLOCKED`, never partial success.
+The Main Agent supplies:
+
+- original requirement and confirmed clarifications;
+- exact artifact, spec, and plan paths plus current contents;
+- complete current production-and-test change;
+- affected business module, observable behaviors, applicable risks, and Regression Ring;
+- existing, added, and modified tests, fixtures, mocks, schemas, contracts, and selected layers;
+- native test commands and results executed by Main Agent;
+- test-stage repairs;
+- response number and total budget;
+- prior adjudication and actual corrections on continuation or replacement.
+
+The Reviewer may use structurally read-only checkout access to inspect production code, tests, fixtures, schemas, callers, consumers, and contracts only through concrete coupling evidence. It cannot run Git, tests, builds, network calls, or external processes and must not perform an unconditional repository-wide scan. Do not include secrets, credentials, production data, or unrelated private content. Missing or inconsistent required input produces `REVIEW_BLOCKED`, never partial success.
 
 ## Initial Reviewer Prompt
 
@@ -91,12 +87,14 @@ Objectively determine whether the complete current project-native tests credibly
 
 Response:
 This is response [RESPONSE_NUMBER] of a maximum five responses.
-Review-input identity: [INPUT_ID]
-Manifest: [MANIFEST]
-Change context: [CHANGE_CONTEXT]
+Artifact directory: [ARTIFACT_DIR]
+Specification path and content: [SPEC_PATH_AND_CONTENT]
+Plan path and content: [PLAN_PATH_AND_CONTENT]
+Checkout root: [CHECKOUT_ROOT]
+Requirement and clarifications: [REQUIREMENT_CONTEXT]
+Current production-and-test change: [CURRENT_CHANGE]
 Coverage context: [COVERAGE_CONTEXT]
-Test context: [TEST_CONTEXT]
-Targeted supporting context: [SUPPORTING_CONTEXT]
+Test context and Main-Agent execution results: [TEST_CONTEXT]
 
 Execution boundaries:
 - Complete this review personally.
@@ -104,9 +102,9 @@ Execution boundaries:
 - Do not ask the Main Agent to create a helper.
 - Do not re-enter orchestration, delegation, another review workflow, or an equivalent process.
 - Do not modify, create, delete, rename, stage, commit, or otherwise mutate files.
-- Do not execute commands, tests, builds, network calls, or any operation that can change state.
-- Read only the bounded review input and explicitly represented targeted supporting material.
-- Do not perform broad repository discovery or a full repository scan.
+- Do not execute shell, Git, tests, builds, network calls, external processes, or any operation that can change state.
+- Use read-only checkout access only for concrete module, caller, consumer, schema, type, configuration, fixture, test, or contract coupling.
+- Do not perform unconditional repository discovery or a full repository scan.
 - Report only corrections supported by a concrete target and evidence.
 - Do not invent an issue merely to return feedback.
 - Return REVIEW_BLOCKED rather than delegate or provide an incomplete success result.
@@ -134,19 +132,22 @@ Return exactly one result using the Reviewer Output Protocol.
 
 ## Resume Prompt
 
-Resume the exact same Reviewer. Do not create a new Reviewer with this prompt.
+Prefer native continuation of the same Reviewer. If unavailable, use this complete prompt for one compliant replacement under the replacement rules below.
 
 ```text
 Continue as the same independent Test Reviewer.
 
 Response:
 This is response [RESPONSE_NUMBER] of a maximum five responses.
-New review-input identity: [INPUT_ID]
-New manifest: [MANIFEST]
-Current change context: [CHANGE_CONTEXT]
+Continuation mode: [NATIVE_OR_REPLACEMENT]
+Artifact directory: [ARTIFACT_DIR]
+Specification path and content: [SPEC_PATH_AND_CONTENT]
+Plan path and content: [PLAN_PATH_AND_CONTENT]
+Checkout root: [CHECKOUT_ROOT]
+Requirement and clarifications: [REQUIREMENT_CONTEXT]
+Current production-and-test change: [CURRENT_CHANGE]
 Current coverage context: [COVERAGE_CONTEXT]
-Current test context: [TEST_CONTEXT]
-Current supporting context: [SUPPORTING_CONTEXT]
+Current test context and Main-Agent execution results: [TEST_CONTEXT]
 Previously accepted corrections: [ACCEPTED_CORRECTIONS_OR_NONE]
 Repairs actually made: [REPAIRS_OR_NONE]
 Main-Agent native verification: [VERIFICATION]
@@ -233,28 +234,25 @@ Independent review converges when:
 4. Validate the response against the output protocol and record it in the report.
 5. Adjudicate every correction and record accepted, rejected, or unresolved with evidence.
 6. For accepted corrections, the Main Agent repairs the current workspace, executes focused and required regressions, then performs a complete Main-Agent review round over the new state within its ten-round budget.
-7. If responses remain, capture the complete fresh input and natively resume the exact same Reviewer. Never create a replacement.
-8. If response five contains an accepted correction, do not repair and claim pass without independent recheck. Return `TEST_NEEDS_FIXES` with the known correction.
-9. If response five contains an unresolved correction or `REVIEW_BLOCKED` that cannot be corrected safely, return `TEST_BLOCKED`.
-10. Stop sending messages when the review converges, reaches its limit, or becomes blocked. Explicitly terminate the unit only when the host safely supports it.
+7. If responses remain, prepare the complete latest Test input and prefer native continuation. If unavailable or failed and no replacement has been used in this stage, create one compliant replacement only after the prior Reviewer is no longer active; reapply the full gate and continue with the next response number.
+8. A replacement receives complete current state and all prior adjudication, never only a conversation summary. Replacement does not reset the five-response budget. At most one replacement may be created in the stage, and only one Reviewer may be active.
+9. If response five contains an accepted correction, do not repair and claim pass without independent recheck. Return `TEST_NEEDS_FIXES` with the known correction.
+10. If response five contains an unresolved correction or `REVIEW_BLOCKED` that cannot be corrected safely, return `TEST_BLOCKED`.
+11. Stop sending messages when the review converges, reaches its limit, or becomes blocked. Explicitly terminate the unit only when the host safely supports it.
 
 ## Strict Downgrade
 
-Use Strict Downgrade when:
-
-- required capability is unavailable or unproven before creation;
-- creation fails before a valid response;
-- a required structural capability disappears;
-- exact native resume fails after mutation.
+Use Strict Downgrade when a required capability is unavailable or unproven, creation fails before a valid response, prohibited capability appears, the prior Reviewer may still be active, or no compliant continuation/replacement can be established.
 
 Behavior:
 
-1. Never create a weaker or replacement Reviewer.
-2. Never create a fresh Reviewer with a summary; summary context is not native continuation.
-3. Before creation or before any valid response, record the downgrade and preserve the converged mandatory Main-Agent review.
-4. When resume fails after mutation, the old independent result no longer describes the final state. Rerun mandatory Main-Agent review over the mutation within its remaining budget, record the downgrade, and set `final_state_rechecked=false` for independent review.
-5. A semantic `REVIEW_BLOCKED` caused by incomplete or inconsistent required input is not silently downgraded. Correct the input and resume the same Reviewer within budget, or return `TEST_BLOCKED`.
-6. Strict Downgrade is visible reduced assurance, not a new testing result and not permission to weaken Main-Agent review or native test execution.
+1. Never create a weaker Reviewer whose prohibited capabilities remain available.
+2. Prefer native continuation, but permit a fresh compliant replacement with complete latest input and prior adjudication; a summary alone is insufficient.
+3. Before creation or before any valid response, record downgrade and preserve the converged mandatory Main-Agent review.
+4. Creation failure without a response does not consume response budget; a produced malformed response follows the existing response-budget rule.
+5. When continuation and compliant replacement both fail after mutation, rerun mandatory Main-Agent review over the mutation within remaining budget, record downgrade, and set `final_state_rechecked=false`.
+6. A semantic `REVIEW_BLOCKED` caused by incomplete required input is not silently downgraded. Correct input within remaining shared budget using native continuation or compliant replacement, or return `TEST_BLOCKED`.
+7. Strict Downgrade is visible reduced assurance, not a new testing result and not permission to weaken Main-Agent review or native execution.
 
 ## Report Recording
 
@@ -264,6 +262,7 @@ Record:
 - each response number `1..5`, input identity, result, and correction count;
 - every Main-Agent adjudication and its evidence;
 - actual repair and native verification;
-- whether the exact final state was independently rechecked.
+- whether the exact final state was independently rechecked;
+- capability basis, continuation mode (`native`, `replacement`, `mixed`, or `not-applicable`), and replacement count.
 
 The report remains the human-readable test artifact. Do not create a separate Reviewer state machine or evidence package.

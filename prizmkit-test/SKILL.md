@@ -234,11 +234,11 @@ All evidence-based rejections with no unresolved item are normal convergence. An
 
 Only after Main-Agent review converges, read `${SKILL_DIR}/references/independent-test-review.md` and follow its complete contract.
 
-- Create at most one Reviewer for this invocation.
+- Keep at most one Reviewer active for this invocation and permit at most one compliant replacement.
 - Permit at most five responses.
-- Use native continuation of the exact same Reviewer after an accepted correction.
+- Prefer native continuation after an accepted correction; when unavailable, permit one compliant replacement with complete latest Test state, prior adjudication, exact artifact/spec/plan paths, and the same remaining response budget.
 - The Reviewer is optional and available only when every structural capability in the reference is proven.
-- If capability is unavailable or unproven, create no weaker replacement; record a visible strict downgrade and preserve the converged mandatory Main-Agent review.
+- If capability is unavailable or unproven, create no weaker Reviewer; record a visible strict downgrade and preserve the converged mandatory Main-Agent review.
 - The Main Agent retains adjudication, mutation, execution, final result, and reporting authority.
 - If response five still contains an accepted correction, return `TEST_NEEDS_FIXES`.
 - If response five still contains unresolved truth, input, or safety, return `TEST_BLOCKED`.

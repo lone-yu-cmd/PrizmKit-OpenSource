@@ -119,11 +119,11 @@ Run only after the Main-Agent review and repair loop converges with no unresolve
 
 1. Read `${SKILL_DIR}/references/independent-code-review.md` and follow its complete contract.
 2. Apply its all-or-nothing semantic Host Capability Gate. If any required structural capability is unavailable or unproven, create no Reviewer, append `independent-review-downgrade`, and preserve the valid completed Main-Agent review.
-3. When the gate passes, capture bounded immutable input for the complete current change and create exactly one Code Reviewer with the reference's Initial Reviewer Prompt.
+3. When the gate passes, provide exact artifact/spec/plan paths and contents, Main-Agent-captured complete current changes, implementation context, and verification results to one active Code Reviewer with the reference's Initial Reviewer Prompt.
 4. Use maximum five Reviewer responses. Append `independent-review-round` and `independent-adjudication` events. The Main Agent adjudicates every correction as `accepted`, `rejected`, or `unresolved` and retains all mutation authority.
 5. For accepted corrections, repair directly in the active checkout, run targeted verification, and inspect the complete resulting change.
-6. When responses remain, capture the complete fresh state and natively resume the exact same Reviewer. Never create a replacement Reviewer or simulate continuation with a fresh Reviewer plus summary.
-7. If native resume fails after repair, append downgrade and rerun the Main-Agent review over that repair within the existing ten-round safety fuse.
+6. When responses remain, prepare complete latest state and prefer native continuation. If unavailable, the reference permits one compliant replacement with complete latest state, prior adjudication, and the same remaining budget.
+7. If neither compliant continuation nor replacement is available after repair, append downgrade and rerun the Main-Agent review over that repair within the existing ten-round safety fuse.
 8. If the fifth response causes a repair, run targeted verification, inspect the complete final change, record `Final State Independently Rechecked: no`, and do not send a sixth response.
 9. `NO_CORRECTION_NEEDED` or all corrections rejected with evidence converges independent review. Any unresolved correction produces `NEEDS_FIXES`.
 

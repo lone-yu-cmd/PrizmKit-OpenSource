@@ -119,8 +119,11 @@
 <!-- Appending this terminal record does not trigger another Reviewer response and does not add an implementation task. -->
 
 - Capability Gate: <ENABLED | DOWNGRADED>
+- Capability Basis: <platform-neutral structural evidence or unavailable>
 - Downgrade Reason: <reason or none>
 - Reviewer Responses: <0..2>
+- Continuation Mode: <native | replacement | mixed | not-applicable>
+- Reviewer Replacements: <0..1>
 - Convergence: <no correction | all rejected | final-budget verification | local-review fallback | strict downgrade>
 - Final State Independently Rechecked: <yes | no | not applicable>
 - Unresolved Corrections: <none for PLAN_READY>

@@ -121,10 +121,10 @@ Run only after the Main-Agent Plan/Spec review converges. This optional check ne
 
 1. Read `${SKILL_DIR}/references/independent-plan-review.md` and follow its complete contract.
 2. Apply its all-or-nothing semantic Host Capability Gate. If any required structural capability is unavailable or unproven, create no Reviewer and record strict downgrade in `plan.md`.
-3. When the gate passes, capture bounded immutable current-state input and create exactly one Plan Reviewer with the reference's Initial Reviewer Prompt.
+3. When the gate passes, provide the original requirement, confirmed clarifications, exact `artifact_dir`/`spec_path`/`plan_path`, and current spec/plan contents to one active Plan Reviewer with the reference's Initial Reviewer Prompt.
 4. Use maximum two Reviewer responses. Adjudicate every correction as `accepted`, `rejected`, or `unresolved`; the Main Agent alone modifies artifacts.
-5. After an accepted correction, perform targeted Plan/Spec verification and, when one response remains, natively resume the exact same Reviewer. Never create a replacement Reviewer or simulate continuation with a fresh Reviewer plus summary.
-6. If native resume fails after modification, record downgrade and rerun the Main-Agent local Plan/Spec review over that modification as specified by the reference.
+5. After an accepted correction, perform targeted Plan/Spec verification and prefer native continuation when one response remains. If unavailable, the reference permits one compliant replacement with complete latest planning state and the same remaining budget.
+6. If neither compliant continuation nor replacement is available after modification, record downgrade and rerun the Main-Agent local Plan/Spec review over that modification as specified by the reference.
 7. If the final allowed response causes a modification, run targeted verification, record that the final state was not independently rechecked, and do not exceed the response budget.
 8. Append the terminal `## Independent Plan Review` record. Appending that audit record does not trigger another response.
 9. Any unresolved correction produces `PLAN_BLOCKED`; otherwise independent convergence or strict downgrade may continue to handoff from the valid completed Main-Agent review.
