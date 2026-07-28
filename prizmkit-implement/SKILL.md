@@ -1,35 +1,34 @@
 ---
 name: "prizmkit-implement"
-description: "Execute the reviewed plan for a formal PrizmKit requirement, update task checkpoints, preserve the shared workflow artifact directory, and hand off to prizmkit-code-review. Use after prizmkit-plan or when resuming implementation repair. (project)"
+description: "Execute one caller-supplied spec.md/plan.md change, including explicitly scoped repairs, focused verification, and task-marker updates. Returns IMPLEMENTED or IMPLEMENT_BLOCKED. (project)"
 ---
 
 # PrizmKit Implement
 
-`/prizmkit-implement` executes the tasks in one formal requirement's `plan.md`. It is the implementation stage, including implementation repairs requested by code review or testing.
+`/prizmkit-implement` executes tasks from one caller-supplied `plan.md`, including concrete repair findings explicitly included in the request.
 
 ## When to Use
 
-- After `/prizmkit-plan` reports `PLAN_READY`.
-- When workflow state routes a review or test repair back to implementation.
-- When `plan.md` contains unchecked tasks for the active requirement.
+- A caller supplies reviewed `spec.md` and `plan.md` artifacts with incomplete tasks.
+- A caller supplies an explicit repair scope and findings for implementation repair.
+- `plan.md` contains unchecked or explicitly reopened tasks, or the caller requests validation of completed task markers against the current change.
 - User says "implement", "build", "code it", "start coding", "develop", or "execute".
 
 ## When NOT to Use
 
-- No `spec.md` and `plan.md` exist for the formal requirement.
-- All planned tasks are complete and no repair scope is recorded.
+- No `spec.md` and `plan.md` exist for the supplied change.
+- All planned tasks are complete and the caller already has a valid implementation result for the unchanged current work.
 - The user is still deciding scope or asking for planning.
-- The request is a direct low-risk edit outside the formal requirement lifecycle.
+- The request has no reviewed implementation artifact and does not need a formal plan.
 
 ## Preconditions and Artifact Identity
 
 | Required artifact | Check | If missing |
 |---|---|---|
-| `plan.md` with Tasks | Exists and contains incomplete or explicitly repairable work | Return `IMPLEMENT_BLOCKED` and direct the user to `/prizmkit-plan`. |
-| `spec.md` | Exists in the same artifact directory | Return `IMPLEMENT_BLOCKED` and direct the user to `/prizmkit-plan`. |
-| Workflow state | Reusable or reconstructable | Reconstruct from artifacts and report the result when absent or stale. |
+| `plan.md` with Tasks | Exists; contains incomplete/repairable work or completed markers requiring current-change validation | Return `IMPLEMENT_BLOCKED` with the missing-input reason. |
+| `spec.md` | Exists in the same artifact directory | Return `IMPLEMENT_BLOCKED` with the missing-input reason. |
 
-Accept `artifact_dir` from the preceding skill or workflow state. Do not scan for a different most-recent plan when invoked as a handoff. A single requirement must reuse the same `artifact_dir` throughout all stages.
+Require the caller to supply or confirm `artifact_dir`. Do not discover a different recent artifact. Optional repair input must include the exact findings and `repair_scope`; do not infer them from caller state.
 
 ## Context Loading
 
@@ -37,17 +36,17 @@ Before editing:
 
 1. Read `plan.md`, `spec.md`, and only relevant companion artifacts.
 2. Read `.prizmkit/prizm-docs/root.prizm` when present.
-3. Read relevant L1 docs and relevant L2 docs when present.
-4. If an affected L2 doc is missing, read the target source files as fallback and record that no L2 context was available. Do not create L2 merely because it was read; retrospective decides whether durable knowledge warrants it.
+3. Follow its pointers to only the relevant direct-child module index and nested detail documentation. Before modifying source, read the complete relevant detail plus the complete parent/child documents needed to resolve its pointers; grep-only fragments are insufficient modification context.
+4. If relevant detail documentation is missing, inspect only bounded target source files and narrowly implicated callers/contracts as fallback, record that detailed context was unavailable, and proceed without creating a placeholder. Context loading never creates or modifies documentation.
 5. Read referenced layer rules when present. If a rule conflicts with the plan, stop and ask the user unless the plan clearly supersedes the rule.
 
 ## Optional Inline Delegation
 
-The default is direct Main-Agent implementation. If a narrow slice is delegated, use `prompt_reference: ${SKILL_DIR}/references/implementation-subagent-procedure.md` and follow its active-checkout/no-worktree constraints. Delegation is optional implementation detail and does not alter lifecycle handoff or ownership.
+The default is direct Main-Agent implementation. If a narrow slice is delegated, use `prompt_reference: ${SKILL_DIR}/references/implementation-subagent-procedure.md` and follow its active-checkout/no-worktree constraints. Delegation is an implementation-stage detail and does not change this Skill's output contract.
 
 ## Atomic Stage Boundary
 
-`prizmkit-implement` owns only execution of plan tasks and implementation repairs. It writes its truthful terminal result and `next_stage`, then returns control. When an external orchestrator is active, it must not invoke code review or test itself. The active orchestrator owns the next-stage invocation.
+`prizmkit-implement` owns only execution of supplied plan tasks and explicitly scoped implementation repairs. It returns `IMPLEMENTED` or `IMPLEMENT_BLOCKED` and stops.
 
 ## Execution
 
@@ -61,15 +60,15 @@ For each unchecked or explicitly repair-scoped task, in plan order:
 4. Avoid unrelated edits and preserve the requirement's artifact identity.
 5. Mark a task complete immediately after its implementation is complete.
 6. Stop dependent tasks on failure; run `[P]` tasks in parallel only when safe.
-7. Execute only local implementation verification here. The mandatory full lifecycle code review follows implementation and the mandatory auditable test stage follows code review.
+7. Execute focused implementation verification appropriate to the changed task; do not expand into a separate broad audit unrelated to implementation.
 
 ### Repair Scope
 
-When routed from a failed test or review, read `repair_scope` from workflow state and constrain edits accordingly:
+When the caller requests repair, require an explicit `repair_scope` and concrete findings:
 
-- `production`, `runtime`, `schema`, `dependency`, or `public-interface`: production-affecting changes. Completion must hand off to `prizmkit-code-review`.
-- `test-infrastructure`: tests, fixtures, test runner configuration, or evidence setup only. Completion may hand off directly to `prizmkit-test`.
-- `unknown`: stop and ask the user; do not guess which downstream gates can be skipped.
+- `production`, `runtime`, `schema`, `dependency`, or `public-interface`: constrain edits to the supplied production concern.
+- `test-infrastructure`: constrain edits to tests, fixtures, runner configuration, or evidence setup.
+- missing or `unknown`: return `IMPLEMENT_BLOCKED`; do not guess the intended repair.
 
 ## Recovery
 
@@ -77,53 +76,18 @@ If interrupted:
 
 - Reuse completed task markers and the same `artifact_dir`.
 - Inspect any partially edited files before continuing.
-- Reconcile workflow state with the plan and current diff.
-- Never report `IMPLEMENTED` when incomplete tasks or unresolved repair work remain.
+- Reconcile plan task markers with the current diff.
+- Never report `IMPLEMENTED` when tasks or supplied repair findings remain unresolved.
 
-## Workflow State
+## Output
 
-Before reading or updating workflow state, read `${SKILL_DIR}/references/workflow-state-protocol.md`.
+Return only implementation-stage outputs:
 
-On successful implementation, update `.prizmkit/state/workflows/<requirement-slug>.json` with:
-
-```json
-{
-  "stage": "implement",
-  "status": "completed",
-  "stage_result": "IMPLEMENTED",
-  "completed_stages": ["plan", "implement"],
-  "repair_round": 0,
-  "repair_scope": null,
-  "next_stage": "code-review",
-  "resume_from": "prizmkit-code-review"
-}
-```
-
-For a repair, increment `repair_round`, set `status=failed` and `stage_result=IMPLEMENT_REPAIR`, preserve the triggering failure in the state, and select the next stage according to `repair_scope`. The outer workflow permits at most three repair rounds; the implementation stage must return a blocked result rather than start a fourth round.
-
-## Output and Handoff
-
-Report:
-
+- `artifact_dir`;
 - implementation summary;
-- completed and remaining tasks;
-- files changed;
-- local verification performed;
-- workflow state path and status;
-- exact next stage.
+- completed and remaining task markers;
+- changed paths;
+- focused verification performed;
+- `IMPLEMENTED` when all supplied work is complete, otherwise `IMPLEMENT_BLOCKED` with exact blockers.
 
-On initial implementation or a production-affecting repair:
-
-```text
-IMPLEMENTED
-  → /prizmkit-code-review
-```
-
-On a test-infrastructure-only repair:
-
-```text
-IMPLEMENTED
-  → /prizmkit-test
-```
-
-If workflow state names an active `orchestrator`, return the terminal result, state path, and selected next stage to it; do not invoke another stage independently. For direct stage use, provide the deterministic next invocation with the same `artifact_dir`; a host may perform that semantic handoff on the user's behalf.
+Return only the listed implementation outputs. Do not invoke another Skill.

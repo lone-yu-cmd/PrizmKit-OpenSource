@@ -89,6 +89,37 @@ class ReportLifecycleTests(unittest.TestCase):
             with self.assertRaises(render_review_report.ReportStateError):
                 render_review_report.append_final_result(report, self._pass_result())
 
+    def test_scope_classification_records_in_scope_and_default_exclusions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "review-report.md"
+            render_review_report.initialize_report(report)
+            render_review_report.append_event(
+                report,
+                {
+                    "event": "scope-classification",
+                    "in_scope_paths": ["src/example.py", "tests/test_example.py"],
+                    "excluded_paths": [".prizmkit/specs/example/plan.md", "AGENTS.md"],
+                },
+            )
+            text = report.read_text()
+            self.assertIn("## Review Scope", text)
+            self.assertIn("  - src/example.py", text)
+            self.assertIn("  - .prizmkit/specs/example/plan.md", text)
+
+    def test_scope_classification_rejects_duplicate_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "review-report.md"
+            render_review_report.initialize_report(report)
+            with self.assertRaises(render_review_report.ReportStateError):
+                render_review_report.append_event(
+                    report,
+                    {
+                        "event": "scope-classification",
+                        "in_scope_paths": ["src/example.py", "src/example.py"],
+                        "excluded_paths": [],
+                    },
+                )
+
     def test_independent_round_validates_result_counts_and_response_limit(self):
         with tempfile.TemporaryDirectory() as directory:
             report = Path(directory) / "review-report.md"
@@ -98,6 +129,9 @@ class ReportLifecycleTests(unittest.TestCase):
                 {
                     "event": "independent-review-round",
                     "response": 5,
+                    "capability_basis": "Structurally read-only Reviewer capability verified.",
+                    "continuation_mode": "native",
+                    "reviewer_replacements": 0,
                     "result": "CORRECTION_NEEDED",
                     "corrections": 2,
                     "accepted": 1,
@@ -108,6 +142,9 @@ class ReportLifecycleTests(unittest.TestCase):
             )
             text = report.read_text()
             self.assertIn("## Independent Review Round 5", text)
+            self.assertIn("- Capability Basis: Structurally read-only Reviewer capability verified.", text)
+            self.assertIn("- Continuation Mode: native", text)
+            self.assertIn("- Reviewer Replacements: 0", text)
             self.assertIn("- Result: CORRECTION_NEEDED", text)
             self.assertIn("- Corrections: 2", text)
 
@@ -133,6 +170,9 @@ class ReportLifecycleTests(unittest.TestCase):
             event = {
                 "event": "independent-review-round",
                 "response": 1,
+                "capability_basis": "Structurally read-only Reviewer capability verified.",
+                "continuation_mode": "native",
+                "reviewer_replacements": 0,
                 "result": "NO_CORRECTION_NEEDED",
                 "corrections": 0,
                 "accepted": 0,
@@ -150,6 +190,9 @@ class ReportLifecycleTests(unittest.TestCase):
             base = {
                 "event": "independent-review-round",
                 "response": 1,
+                "capability_basis": "Structurally read-only Reviewer capability verified.",
+                "continuation_mode": "native",
+                "reviewer_replacements": 0,
                 "result": "CORRECTION_NEEDED",
                 "corrections": 1,
                 "accepted": 0,
@@ -193,6 +236,9 @@ class ReportLifecycleTests(unittest.TestCase):
                 {
                     "event": "independent-review-downgrade",
                     "reason": "Native continuation became unavailable.",
+                    "capability_basis": "Compliant continuation and replacement unavailable.",
+                    "continuation_mode": "not-applicable",
+                    "reviewer_replacements": 0,
                     "fallback": "Main-Agent review rerun over the accepted repair.",
                     "final_state_independently_rechecked": "no",
                 },
@@ -203,6 +249,9 @@ class ReportLifecycleTests(unittest.TestCase):
                 text.index("## Independent Review Downgrade"),
             )
             self.assertIn("- Decision: accepted", text)
+            self.assertIn("- Capability Basis: Compliant continuation and replacement unavailable.", text)
+            self.assertIn("- Continuation Mode: not-applicable", text)
+            self.assertIn("- Reviewer Replacements: 0", text)
             self.assertIn("- Final State Independently Rechecked: no", text)
 
     def test_independent_adjudication_validates_decision(self):

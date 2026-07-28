@@ -36,20 +36,42 @@ Include only evidenced coupling:
 - persistence, cache, lock, queue, transaction, or other shared state;
 - registrations, configuration, or runtime discovery that concretely connects behavior.
 
-Record dynamic or unprovable coupling as a remaining edge. An edge that can change the testing verdict prevents `TEST_PASS` until resolved.
+Record dynamic or unprovable coupling as a remaining edge. An edge that can change the automated testing verdict prevents `TEST_PASS` until resolved; an authoritatively separate manual/external obligation remains visible under its own evidence status.
 
 ## Truth Precedence
 
-Resolve expected behavior in this order:
+Resolve expected business behavior from confirmed specifications and acceptance criteria before lower-authority observations. For a producer-consumer boundary, apply the boundary-specific authority in `boundary-contract-and-test-double-guidance.md`:
 
 1. confirmed specification;
-2. machine-readable contract;
-3. acceptance criteria;
-4. trusted existing tests;
-5. callers and consumers;
-6. current implementation.
+2. machine-readable wire contract;
+3. traceably generated type, client, server stub, or fixture;
+4. provider raw-wire contract evidence or authorized isolated observation;
+5. provider implementation, locked SDK behavior, and matching official documentation;
+6. trusted existing tests, callers and consumers, consumer-local types/fixtures/mocks, and other current implementation evidence.
 
-Do not encode a possible implementation defect as expected behavior. Conflicting higher-precedence truth that cannot be resolved produces `TEST_BLOCKED`.
+Lower-authority material cannot override a higher-authority source or prove a property outside its boundary. Do not encode a possible implementation defect as expected behavior. Conflicting higher-precedence truth that cannot be resolved produces `TEST_BLOCKED`.
+
+## Evidence Obligation and Verdict Relevance
+
+Classify each material acceptance criterion, environment prerequisite, composition proof, and failing diagnostic before selecting layers or assigning verdict impact. The default is `automated-required`.
+
+| Obligation | Authority and Meaning | Verdict Rule |
+|---|---|---|
+| `automated-required` | The property belongs to the current software-change verdict, including safely constructible local tooling or isolated services needed to prove it. | Missing truth, safe execution, fidelity, or composition evidence prevents `TEST_PASS`. |
+| `manual-external-nonblocking` | A confirmed specification, acceptance criterion, or explicit caller decision says physical-device, public-infrastructure, production-account, or human-confirmation evidence may remain pending after the automated software-change verdict. | Record the evidence as unproven and preserve any project-native status such as `MANUAL_VERIFICATION_REQUIRED`; do not treat it as an unresolved testing-domain item. |
+| `out-of-scope-diagnostic` | A current-checkout failure has no concrete path, caller, consumer, contract, configuration, dependency, generated-artifact, or shared-state coupling to this change. | It may be informational only after every condition below is proven. |
+
+Difficulty, duration, cost, agent inability, or initial absence of safely constructible local tooling or isolated services cannot downgrade an `automated-required` obligation. A manual/external classification must be explicit at a higher authority and must separate that evidence from software implementation/commit completion; inability to access an environment is not itself authority. Ambiguous authority or verdict relevance remains blocking.
+
+A current-checkout failure is `out-of-scope-diagnostic` only when all of these hold:
+
+1. affected-module and Regression Ring verification pass;
+2. every failure is outside changed paths and concrete coupling;
+3. the failure reproduces deterministically on the current state;
+4. no changed dependency, configuration, generated artifact, or shared contract caused it;
+5. no explicit requirement or project rule makes that broad command a completion gate.
+
+Do not claim historical or pre-existing provenance from a historical worktree, second checkout, test overlay, or unsupported baseline comparison. If any relationship is uncertain, keep the failure verdict-capable. These classifications affect only the current automated Test verdict: they never approve release, deployment, public readiness, signing, security review, or physical-device acceptance.
 
 ## Behavior Inventory
 
@@ -88,6 +110,21 @@ Cover validation, dependency, malformed-response, timeout, cancellation, cleanup
 
 Cover valid and invalid transitions, retries, repeated calls, writes, events, call counts, ordering, rollback, and cleanup.
 
+For every applicable state-changing user or system workflow, model and test the complete mutation lifecycle:
+
+1. precondition;
+2. input or selection;
+3. explicit commit point;
+4. cancel without side effects before commit;
+5. pending and duplicate-action protection;
+6. success visibility;
+7. failure recovery and absence of partial effects;
+8. reload or re-entry, including process restart when relevant;
+9. retry, conflict, and idempotency behavior;
+10. downstream read or consumption of the committed result.
+
+If the confirmed specification does not establish the commit point or interaction semantics, request clarification or return `TEST_BLOCKED` when the ambiguity affects the verdict. Do not infer the expected workflow from the current implementation.
+
 ### Permission
 
 Apply to identity, role, tenant, ownership, policy, entitlement, secret, or protected-resource behavior. Include missing/invalid identity, wrong owner or tenant, insufficient grants, and default-deny behavior.
@@ -112,20 +149,26 @@ Apply to databases, filesystems, queues, providers, clocks/randomness, cross-mod
 
 Apply when callers depend on return shape, errors, side effects, ordering, generated assets, shared types, contracts, state, or invocation conventions.
 
-## Layer Selection
+## Layer Selection and Proof Capability
 
-Use the lowest layer that proves a property without removing relevant composition.
+Use the lowest layer that proves a property without removing relevant composition. Classify tests by components actually executed:
 
 | Layer | Use For |
 |---|---|
-| Focused/unit | Critical pure logic, exact boundaries, deterministic errors, fast localization. |
-| Module/component | Public module behavior with internal collaborators composed as production uses them. |
-| Contract/integration | Shared protocol compatibility or isolated infrastructure that mocks cannot adequately prove. |
-| Code-level E2E | User-visible CLI, API, or UI composition when an applicable native harness exists. |
+| Focused / Unit Test | Critical pure logic, exact boundaries, deterministic errors, and fast localization; dependencies may be replaced. |
+| Module / Component Test | Public module behavior or UI component behavior under supplied dependencies. |
+| UI Component Test | Rendering and interaction with provider compatibility explicitly out of scope. |
+| Mock Browser Test | Browser workflow with an intercepted or fixture-backed critical boundary; not Full-stack evidence. |
+| Consumer Contract Test | Consumer handling against a contract-validated test double. |
+| Provider Contract Test | Provider raw wire payload at its serialization boundary. |
+| Integration Test | A named module/infrastructure combination with that combination kept real. |
+| Full-stack E2E | Complete user path with critical application boundaries not replaced. |
 | Affected-module regression | Every required test for the complete affected module. |
 | Regression Ring | Concrete callers, consumers, contracts, adapters, and shared state dependencies. |
 
-Not every behavior needs every layer. Record a concise reason for omitted higher layers, such as a pure library having no process or UI boundary.
+Browser execution alone does not determine the layer. Every test claim must state the property proved and any property not proven because a test double removes relevant composition.
+
+Not every behavior needs every layer. Record a concise reason for omitted higher layers, such as a pure library having no process or UI boundary. A missing layer blocks `TEST_PASS` when it is needed to preserve an `automated-required` verdict-capable combination; authorized manual/external evidence is reported as unproven rather than relabeled as an executed layer.
 
 ## Critical Low-Level Logic
 
@@ -179,15 +222,19 @@ Use existing line, branch, or function coverage to locate possibly omitted behav
 
 Coverage is complete enough for `TEST_PASS` only when:
 
-1. every discoverable observable behavior is represented;
-2. every applicable risk has a credible project-native test;
+1. every discoverable `automated-required` observable behavior is represented;
+2. every applicable automated-verdict risk has a credible project-native test;
 3. critical low-level logic has direct focused coverage when justified;
-4. selected layers preserve the property being proved;
-5. complete affected-module regression passes;
-6. Regression Ring verification passes;
-7. concrete unresolved coupling no longer affects the verdict;
-8. Main-Agent review converges;
-9. applicable independent review converges or is strictly downgraded;
-10. no mutation follows final review and execution.
+4. every automated-verdict boundary and test double has contract authority, fidelity proof, removed-composition, proof-limit, and remaining-risk analysis;
+5. selected layers preserve the property being proved and composition-preserving evidence covers every automated-verdict removed combination;
+6. provider contracts inspect risk-relevant raw wire output;
+7. applicable state-changing workflows cover commit, cancellation, failure, re-entry, and repeated-operation semantics;
+8. complete affected-module regression passes;
+9. Regression Ring verification passes;
+10. concrete unresolved coupling no longer affects the verdict and every non-blocking current-checkout failure satisfies the full diagnostic gate;
+11. every deferred manual/external obligation has explicit authority, visible unproven status, and no false pass claim;
+12. Main-Agent review converges;
+13. applicable independent review converges or is strictly downgraded;
+14. no mutation follows final review and execution.
 
 Absolute completeness cannot be guaranteed. State remaining informational risks honestly without presenting them as proven behavior.

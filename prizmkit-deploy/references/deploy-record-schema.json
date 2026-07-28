@@ -1,0 +1,1053 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prizmkit.dev/schemas/deploy-record.schema.json",
+  "title": "PrizmKit Sole Local Deployment Record",
+  "description": "The complete non-sensitive schema for .prizmkit/deploy/deploy.json. Secret values and raw command or log output are prohibited.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project",
+    "profiles",
+    "secret_references",
+    "current",
+    "latest_result",
+    "history",
+    "recovery",
+    "legacy_migration"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "profiles": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/profile"
+      }
+    },
+    "secret_references": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/secretReference"
+      }
+    },
+    "current": {
+      "$ref": "#/$defs/currentState"
+    },
+    "latest_result": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/terminalResult"
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "SUCCEEDED"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/terminalResult"
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "FAILED"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/terminalResult"
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "BLOCKED"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/terminalResult"
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "WAITING_USER"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/terminalResult"
+            },
+            {
+              "properties": {
+                "status": {
+                  "const": "CANCELLED"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "history": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/historyEntry"
+      }
+    },
+    "recovery": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/recovery"
+        }
+      ]
+    },
+    "legacy_migration": {
+      "$ref": "#/$defs/legacyMigration"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "latest_result": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "WAITING_USER"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "recovery": {
+            "$ref": "#/$defs/recovery"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "latest_result": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "enum": [
+                  "SUCCEEDED",
+                  "CANCELLED"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "recovery": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "operation": {
+      "enum": [
+        "deploy",
+        "status",
+        "health",
+        "logs",
+        "stop",
+        "restart",
+        "rollback",
+        "history",
+        "validate",
+        "diagnose",
+        "takeover",
+        "resume",
+        "cancel"
+      ]
+    },
+    "projectRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*//)(?!.*\/$)(?!\\.{1,2}(?:/|$))(?!.*(?:/)\\.{1,2}(?:/|$))[^\\u0000-\\u001f\\u007f-\\u009f\\ud800-\\udfff]+$"
+    },
+    "legacyDeployPath": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/projectRelativePath"
+        },
+        {
+          "pattern": "^\\.prizmkit/deploy/.+"
+        }
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "observation",
+        "method",
+        "observed_at"
+      ],
+      "properties": {
+        "origin": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "observation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "method": {
+          "enum": [
+            "direct_read",
+            "read_only_probe",
+            "official_documentation",
+            "user_supplied",
+            "legacy_preserved"
+          ]
+        },
+        "observed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "root",
+        "revision",
+        "native_config_files",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "root": {
+          "const": "."
+        },
+        "revision": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "native_config_files": {
+          "type": "array",
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/projectRelativePath"
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "environment",
+        "target_ref",
+        "endpoint_ref",
+        "actual_ports",
+        "native_config_files",
+        "evidence"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "endpoint_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "actual_ports": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          }
+        },
+        "native_config_files": {
+          "type": "array",
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/projectRelativePath"
+          }
+        },
+        "evidence": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "secretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "A reference and presence marker only. Secret values and hashes are forbidden.",
+      "required": [
+        "name",
+        "source_ref",
+        "required",
+        "present"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_.-]{0,127}$"
+        },
+        "source_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "present": {
+          "enum": [
+            "yes",
+            "no",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "healthCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "target_ref",
+        "expected",
+        "required"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "kind": {
+          "enum": [
+            "command",
+            "service_state",
+            "network",
+            "application",
+            "target_native"
+          ]
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "expected": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "rollbackReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availability",
+        "release_identity",
+        "mechanism_ref",
+        "verified_at"
+      ],
+      "properties": {
+        "availability": {
+          "enum": [
+            "VERIFIED",
+            "UNVERIFIED",
+            "ABSENT",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "release_identity": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "mechanism_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "verified_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "currentState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_id",
+        "release_identity",
+        "live_state",
+        "health_boundary",
+        "rollback"
+      ],
+      "properties": {
+        "profile_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "release_identity": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "live_state": {
+          "enum": [
+            "LIVE",
+            "DEGRADED",
+            "OFFLINE",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "health_boundary": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/healthCheck"
+          }
+        },
+        "rollback": {
+          "$ref": "#/$defs/rollbackReference"
+        }
+      }
+    },
+    "verificationLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "layer",
+        "status",
+        "required",
+        "evidence"
+      ],
+      "properties": {
+        "layer": {
+          "enum": [
+            "command_or_platform",
+            "runtime_or_release",
+            "configured_health",
+            "external_url",
+            "startup_logs"
+          ]
+        },
+        "status": {
+          "enum": [
+            "PASSED",
+            "FAILED",
+            "INACCESSIBLE",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      }
+    },
+    "terminalResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "operation",
+        "profile_id",
+        "plan_id",
+        "started_at",
+        "finished_at",
+        "summary",
+        "live_state",
+        "release_identity",
+        "rollback_availability",
+        "verification",
+        "residual_resources",
+        "record_update",
+        "recovery_guidance",
+        "next_operations"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "SUCCEEDED",
+            "FAILED",
+            "BLOCKED",
+            "WAITING_USER",
+            "CANCELLED"
+          ]
+        },
+        "operation": {
+          "$ref": "#/$defs/operation"
+        },
+        "profile_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "plan_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "started_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "finished_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "live_state": {
+          "enum": [
+            "LIVE",
+            "DEGRADED",
+            "OFFLINE",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "release_identity": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "rollback_availability": {
+          "enum": [
+            "VERIFIED",
+            "UNVERIFIED",
+            "ABSENT",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "verification": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/verificationLayer"
+          },
+          "allOf": [
+            {
+              "contains": {
+                "properties": {
+                  "layer": {
+                    "const": "command_or_platform"
+                  }
+                },
+                "required": [
+                  "layer"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "layer": {
+                    "const": "runtime_or_release"
+                  }
+                },
+                "required": [
+                  "layer"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "layer": {
+                    "const": "configured_health"
+                  }
+                },
+                "required": [
+                  "layer"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "layer": {
+                    "const": "external_url"
+                  }
+                },
+                "required": [
+                  "layer"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {
+                "properties": {
+                  "layer": {
+                    "const": "startup_logs"
+                  }
+                },
+                "required": [
+                  "layer"
+                ]
+              },
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "residual_resources": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "record_update": {
+          "enum": [
+            "UPDATED",
+            "UNCHANGED",
+            "FAILED",
+            "NOT_ATTEMPTED"
+          ]
+        },
+        "recovery_guidance": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "next_operations": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/operation"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "SUCCEEDED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "verification": {
+                "not": {
+                  "contains": {
+                    "properties": {
+                      "required": {
+                        "const": true
+                      },
+                      "status": {
+                        "enum": [
+                          "FAILED",
+                          "INACCESSIBLE",
+                          "NOT_APPLICABLE"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "required",
+                      "status"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "historyEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation_id",
+        "timestamp",
+        "operation",
+        "status",
+        "profile_id",
+        "release_identity",
+        "summary"
+      ],
+      "properties": {
+        "operation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "operation": {
+          "$ref": "#/$defs/operation"
+        },
+        "status": {
+          "enum": [
+            "SUCCEEDED",
+            "FAILED",
+            "BLOCKED",
+            "WAITING_USER",
+            "CANCELLED"
+          ]
+        },
+        "profile_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "release_identity": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 256
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        }
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "plan_id",
+        "immutable_plan_digest",
+        "operation",
+        "profile_id",
+        "last_proven_step",
+        "confirmations",
+        "pending_checkpoint",
+        "observations"
+      ],
+      "properties": {
+        "plan_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "immutable_plan_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "operation": {
+          "$ref": "#/$defs/operation"
+        },
+        "profile_id": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 64
+        },
+        "last_proven_step": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 128
+        },
+        "confirmations": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "plan_digest",
+              "confirmed_at"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "COMPLETE_PLAN",
+                  "PROJECT_FILE_CHANGE",
+                  "PRIVILEGED_OR_GLOBAL_DEPENDENCY",
+                  "DESTRUCTIVE_OR_IRREVERSIBLE_MIGRATION",
+                  "SHARED_INFRASTRUCTURE",
+                  "PLAN_EXPANSION",
+                  "UNKNOWN_WRITE_REPLAY",
+                  "NO_RELIABLE_ROLLBACK"
+                ]
+              },
+              "plan_digest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "confirmed_at": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "pending_checkpoint": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "action",
+            "expected_postcondition"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "LOGIN",
+                "MFA",
+                "BROWSER_APPROVAL",
+                "MANUAL_ACTION",
+                "CONFIRMATION",
+                "UNKNOWN_OUTCOME_INSPECTION"
+              ]
+            },
+            "action": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "expected_postcondition": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          }
+        },
+        "observations": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        }
+      }
+    },
+    "legacyMigration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scanned",
+        "sources",
+        "migrated_facts",
+        "conflicts",
+        "preserved_paths"
+      ],
+      "properties": {
+        "scanned": {
+          "type": "boolean"
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "status"
+            ],
+            "properties": {
+              "path": {
+                "$ref": "#/$defs/legacyDeployPath"
+              },
+              "status": {
+                "enum": [
+                  "VALIDATED",
+                  "MIGRATED_NON_SECRET",
+                  "PRESERVED_UNCERTAIN",
+                  "PRESERVED_SECRET",
+                  "INVALID",
+                  "NOT_FOUND"
+                ]
+              }
+            }
+          }
+        },
+        "migrated_facts": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "conflicts": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "preserved_paths": {
+          "type": "array",
+          "maxItems": 200,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/legacyDeployPath"
+          }
+        }
+      }
+    }
+  }
+}

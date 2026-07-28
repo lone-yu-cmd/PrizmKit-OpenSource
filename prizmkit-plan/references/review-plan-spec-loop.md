@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Run this local planning-quality gate after `spec.md` and `plan.md` are drafted or updated, before handing off to `/prizmkit-implement`.
+Run this local planning-quality gate after `spec.md` and `plan.md` are drafted or updated, before returning `PLAN_READY`.
 
 This is not a separate skill and it does not use a Critic agent. It is the mandatory Main-Agent baseline executed inside `prizmkit-plan` to improve the planning artifacts only. Its maximum of two local rounds remains independent of the optional Reviewer described in `independent-plan-review.md`.
 
@@ -12,7 +12,7 @@ Do not do any of the following from this guide:
 
 - Start implementation or edit product/source code.
 - Run tests, builds, lint, or package commands.
-- Launch a feature, bugfix, or refactor pipeline.
+- Start implementation or any other execution process.
 - Spawn or require a Critic agent inside this Main-Agent loop. The separate optional independent review is considered only after this loop converges and only through `independent-plan-review.md`.
 - Create a separate review-loop skill.
 - Expand scope beyond improving `spec.md` and `plan.md`.
@@ -75,7 +75,7 @@ Examples:
 - Alternative task grouping with no correctness impact.
 - A lower-risk cleanup suggestion outside current scope.
 
-Optional findings do not block handoff.
+Optional findings do not block planning completion.
 
 ## Loop Algorithm
 
@@ -92,10 +92,10 @@ Optional findings do not block handoff.
 
 ## Output Summary
 
-At handoff, include a short summary:
+At completion, include a short summary:
 
 - Review rounds run: `1` or `2`.
 - Fixes applied to `spec.md`: short list or `none`.
 - Fixes applied to `plan.md`: short list or `none`.
 - Optional findings deferred: short list or `none`.
-- Unresolved blockers: `none` before handoff.
+- Unresolved blockers: `none` before `PLAN_READY`.

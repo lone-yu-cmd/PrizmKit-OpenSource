@@ -61,6 +61,7 @@
 - E2E: [Approach]
 
 ## Risk Assessment
+<!-- Every formal plan keeps at least one concrete risk and mitigation. Use a truthful low-impact risk for small changes rather than filler. -->
 | Risk | Impact | Mitigation |
 |------|--------|------------|
 | [Risk] | [H/M/L] | [Plan] |
@@ -107,12 +108,14 @@
 
 ### Phase: Polish
 - [ ] [T-900] Final verification
-- [ ] [T-901] Documentation update
+- [ ] [T-901] Update required project/user-facing documentation <!-- Conditional; Prizm memory synchronization is Retrospective-owned, not an implementation task. -->
 
 ### Checkpoints
+<!-- Every formal plan has at least one verification checkpoint. Keep only checkpoints for phases that actually exist; a small plan may use one final checkpoint. -->
 - [ ] [CP-1] After Setup: project builds and tests pass
 - [ ] [CP-2] After Foundation: base changes verified
 - [ ] [CP-3] After each Core group: acceptance criteria pass
+- [ ] [CP-FINAL] Final: planned acceptance and regression verification passes
 
 ## Independent Plan Review
 <!-- Append this terminal audit record after the Main-Agent review and the optional independent-review attempt. -->

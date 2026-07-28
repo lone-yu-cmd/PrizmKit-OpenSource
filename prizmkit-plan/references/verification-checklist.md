@@ -8,7 +8,8 @@ Run this checklist after generating the Tasks section in plan.md. Fix any issues
 
 - [ ] Every goal (G-N) in spec.md has at least one task in plan.md
 - [ ] Every task has a target file path (`— file: path/to/file`)
-- [ ] Risk assessment contains at least one risk with a mitigation plan
+- [ ] Risk assessment contains at least one concrete risk with a mitigation plan
+- [ ] The plan contains at least one verification checkpoint; a small plan may use one final checkpoint
 - [ ] If spec includes `## Behavior Preservation` → at least one verification task exists
 - [ ] If spec includes `## Root Cause` → at least one reproduction test task exists
 
@@ -36,7 +37,7 @@ Run this checklist after generating the Tasks section in plan.md. Fix any issues
 
 - [ ] No task references the output of a later task without an explicit dependency note
 - [ ] Foundation tasks precede Core tasks that depend on them
-- [ ] Checkpoint tasks exist between phases
+- [ ] Checkpoints exist between dependent phases that are present; plans without multiple phases use one final checkpoint
 
 ## Rules Alignment
 

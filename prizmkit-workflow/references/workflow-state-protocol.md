@@ -4,11 +4,13 @@
 
 ## Location and Identity
 
+Derive the path through `${SKILL_DIR}/references/artifact-identity.md`:
+
 ```text
-.prizmkit/state/workflows/<requirement-slug>.json
+.prizmkit/state/workflows/<requirement-identity>.json
 ```
 
-The active `artifact_dir` is preserved exactly across every stage:
+The identity is the validated artifact-directory basename. An existing state file for a different `artifact_dir` is a blocking collision and is never overwritten or suffixed automatically. The active `artifact_dir` is preserved exactly across every stage:
 
 ```text
 .prizmkit/specs/<requirement-slug>/
@@ -31,7 +33,7 @@ The state file is an index, not the authority for stage completion:
 | Terminal testing result | `{artifact_dir}/test-result.json` |
 | Retrospective completion | `{artifact_dir}/retrospective-result.json` |
 | Durable architecture knowledge | `.prizmkit/prizm-docs/` |
-| Local commit | Git history and confirmed or authorized commit identity |
+| Local commit | Git history and runtime- or user-verified commit identity |
 | Current stage, orchestrator, and resume entry | Workflow state |
 | External orchestration progress | External host checkpoint |
 
@@ -64,7 +66,7 @@ Every consumer compares workflow state with the skill-owned artifacts and curren
 | `orchestrator` | Semantic coordinator identifier, or null for direct stage use. |
 | `stage` | Stage that most recently wrote state. |
 | `status` | Lifecycle status: `pending`, `in_progress`, `completed`, `failed`, or `skipped`. |
-| `stage_result` | Domain result for the current stage, such as `PLAN_READY`, `IMPLEMENTED`, `REVIEW_PASS`, `REVIEW_NEEDS_FIXES`, `TEST_*`, `RETRO_COMPLETE`, or `COMMITTED`. |
+| `stage_result` | Coordinator-recorded lifecycle result mapped from a validated atomic result and its required artifacts, such as `PLAN_READY`, `IMPLEMENTED`, `REVIEW_PASS`, `REVIEW_NEEDS_FIXES`, `TEST_*`, `RETRO_COMPLETE`, or `COMMITTED`. |
 | `completed_stages` | Ordered stages completed for this requirement. |
 | `repair_scope` | Optional caller-owned routing scope. The test skill reports high-risk repairs through `test-result.json` instead of scheduling another stage. |
 | `repair_round` | Optional outer cross-stage repair round, from 0 through 3. It is not a test-internal repair counter. |
@@ -94,20 +96,34 @@ implementation IMPLEMENTED       → status=completed,  stage_result=IMPLEMENTED
 implementation repair/block      → status=failed,     stage_result=IMPLEMENT_REPAIR or IMPLEMENT_BLOCKED
 review-report PASS               → status=completed,  stage_result=REVIEW_PASS
 review-report NEEDS_FIXES        → status=failed,     stage_result=REVIEW_NEEDS_FIXES
-test-result TEST_PASS            → status=completed,  stage_result=TEST_PASS
+test-result TEST_PASS, production_changed=false → status=completed, stage_result=TEST_PASS
+test-result TEST_PASS, production_changed=true  → bounded re-entry; clear stale stage_result before pending delta Code Review
 test-result TEST_NEEDS_FIXES     → status=failed,     stage_result=TEST_NEEDS_FIXES
 test-result TEST_BLOCKED         → status=failed,     stage_result=TEST_BLOCKED
-retrospective DOCS_UPDATED       → status=completed,  stage_result=RETRO_COMPLETE
-retrospective NO_DOC_CHANGE      → status=completed,  stage_result=RETRO_COMPLETE
-retrospective blocked            → status=failed,     stage_result=RETRO_BLOCKED
-commit authorization pending     → status=in_progress, stage_result=COMMIT_PENDING
+retrospective outcome=RETRO_COMPLETE, result=DOCS_UPDATED   → status=completed, stage_result=RETRO_COMPLETE
+retrospective outcome=RETRO_COMPLETE, result=NO_DOC_CHANGE  → status=completed, stage_result=RETRO_COMPLETE
+retrospective outcome=RETRO_BLOCKED                         → status=failed,    stage_result=RETRO_BLOCKED
+runtime commit preparation       → status=in_progress, stage_result=COMMIT_PENDING
 local commit confirmed           → status=completed,  stage_result=COMMITTED
 commit blocked                   → status=failed,     stage_result=COMMIT_BLOCKED
 ```
 
 `DOCS_UPDATED` and `NO_DOC_CHANGE` remain retrospective artifact `result` values. The workflow `stage_result` is the retrospective stage result `RETRO_COMPLETE`.
 
-`TEST_PASS` requires both `test-report.md` and a consistent `test-result.json`. No manifest, attestation, evidence package, or test-internal checkpoint is part of this contract.
+`TEST_PASS` requires both `test-report.md` and a consistent `test-result.json`. Their `production_changed` diagnostics must agree. Only `production_changed=false` is final Test authority for Retrospective. No manifest, attestation, evidence package, or test-internal checkpoint is part of this contract.
+
+## Passing Production-Repair Re-entry
+
+When consistent Test artifacts return `TEST_PASS` with `production_changed=true`, the atomic Test result remains truthful but the prior Code Review no longer covers the final production state. If `repair_round < 3`, the coordinator:
+
+1. preserves the Test artifacts as repair evidence;
+2. increments `repair_round`;
+3. removes invalidated `code-review` and `test` entries from `completed_stages` while preserving authoritative predecessors;
+4. sets `stage=code-review`, `status=pending`, and `stage_result=null` so no stale result survives re-entry;
+5. sets `repair_scope=production`, `next_stage=code-review`, and `resume_from=prizmkit-code-review`;
+6. invokes delta Code Review and then a fresh Test.
+
+A fresh `TEST_PASS` with `production_changed=false` may complete Test and advance. Another production-changing pass repeats this route within the same outer budget. When `repair_round >= 3`, set `WORKFLOW_BLOCKED` without Retrospective or commit progression.
 
 ## Non-Pass Results and Routing Boundary
 
@@ -115,8 +131,8 @@ commit blocked                   → status=failed,     stage_result=COMMIT_BLOC
 
 ```text
 TEST_NEEDS_FIXES
-→ known correction or required delta review remains
-→ caller decides whether and how to arrange another stage
+→ a known correction remains
+→ caller decides whether and how to arrange another invocation
 
 TEST_BLOCKED
 → truth, input, safe environment, or reliable execution prevents a verdict
@@ -132,30 +148,36 @@ Any outer repair or continuation policy is independently owned by the caller and
 
 1. An atomic stage performs only its own stage, writes its truthful result and artifact paths, and returns control.
 2. When `orchestrator` is non-null, only that orchestrator invokes the next skill.
-3. Direct stage use may report a possible next invocation but does not claim it ran.
+3. Direct atomic use returns only its local result and artifacts; it does not report or select another invocation.
 4. Every handoff preserves the same `artifact_dir`.
 5. External automation invokes atomic stages directly and does not nest the composite workflow.
 6. Workflow state never replaces or absorbs an external host checkpoint.
 
-## Commit Authorization
+## Commit Execution Ownership
 
 Interactive execution:
 
 ```text
-committer previews intended files and message
+coordinator assembles exact intended_paths from all final Git-visible requirement paths, including justified `.prizmkit/**` output
+  + separately labeled explicitly owned host support paths with one-to-one passing support_validation_evidence
+→ committer validates ordinary task ownership, global Secret safety, and the exact files/message
 → waits for explicit current-user confirmation
-→ creates the local commit
+→ stages exact pathspecs, creates, and verifies the local commit
 ```
 
-Trusted headless execution:
+The framework directory is not a blanket allowlist or denylist: a Git-visible `.prizmkit/**` path uses the same exact manifest, task justification, staged-set equality, Secret checks, and receipt verification as any other path, with no documentation-specific evidence. Ignored files remain absent and are never force-added. Exact Runtime request/checkpoint/state, installed Runtime/host payloads, sensitive, unknown, and unrelated paths remain excluded or blocking because of their semantic role. User confirmation alone is not host-support validation.
+
+Pipeline execution:
 
 ```text
-trusted host explicitly authorizes the current local task commit
-→ committer verifies gates and commits automatically
+external coordinator validates its required gates and supplies exact readiness evidence
+→ committer validates only that evidence and writes an exact runtime-commit-request.json
+→ external coordinator maps COMMIT_REQUEST_READY to its checkpoint's in_progress/COMMIT_PENDING state
+→ Python runtime validates the request, commits, verifies Git, and writes checkpoint completed/COMMITTED
 → remote publication remains separate
 ```
 
-A self-declared or untrusted headless context does not authorize a commit.
+The preparation request is data for Runtime validation, not prompt-level authorization. The committer must not stage, commit, or predeclare COMMITTED in preparation mode. Safe Git-visible `.prizmkit/**` task output may appear in Runtime `intended_paths`; ignored paths remain absent, while exact Runtime bookkeeping/support and Secrets remain excluded. Runtime verifies the commit before writing its post-commit receipt/checkpoint and never retroactively inserts those writes into the committed snapshot.
 
 ## Recovery
 
@@ -171,4 +193,4 @@ When state is missing, stale, or inconsistent:
 8. Reconstruct the latest safe predecessor and report the reconstruction.
 9. Continue only from the first incomplete or invalid stage.
 
-Stale state never bypasses review, testing, retrospective, commit authorization, or external checkpoint enforcement.
+Stale state never bypasses review, testing, retrospective, commit preparation/execution, or external checkpoint enforcement.

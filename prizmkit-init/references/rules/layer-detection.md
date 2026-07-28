@@ -28,7 +28,7 @@
 
 ## Mobile Confirmation
 
-When mobile signals are detected but ambiguous (e.g., a monorepo with web + mobile), use `AskUserQuestion`:
+When mobile signals are detected but ambiguous (e.g., a monorepo with web + mobile), ask the user through the current Host's available interaction capability; use ordinary conversation when no structured interaction is available:
 
 > "Mobile platform signals detected (ios/ + android/ directories). Is this project
 > a mobile app, or are these directories for another purpose?"
@@ -37,5 +37,5 @@ When mobile signals are detected but ambiguous (e.g., a monorepo with web + mobi
 ## Output
 
 After detection (signals + your own judgment), assemble `detected_layers` array (e.g., `["frontend", "backend", "database"]`).
-Store in memory for Phase 6 config.json writing.
-If no layers detected (library/CLI project), array is empty.
+Store the observed values in memory for Phase 6 config.json writing. Rule-profile adoption is recorded separately and never changes this detection result.
+If no layers are detected (library/CLI project), the array is empty.

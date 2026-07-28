@@ -18,7 +18,7 @@ Main Agent builds and executes project-native tests
 → TEST_PASS | TEST_NEEDS_FIXES | TEST_BLOCKED
 ```
 
-Keep at most one Reviewer active for this invocation and permit at most one replacement. Prefer native continuation and never reuse a Reviewer from another lifecycle stage. A compliant replacement may continue the same shared response budget only with complete latest state, never only a conversation summary.
+Keep at most one Reviewer active for this invocation and permit at most one replacement. Prefer native continuation and never reuse a Reviewer from another invocation. A compliant replacement may continue the same shared response budget only with complete latest state, never only a conversation summary.
 
 ## Host Capability Gate
 
@@ -50,7 +50,7 @@ Rules:
 
 ## Stage-Specific Review Input
 
-Resolve exact requirement identity from workflow state or explicit handoff on every response:
+Use the exact caller-supplied testing identity on every response:
 
 ```text
 artifact_dir: [EXACT_ARTIFACT_DIR]
@@ -66,10 +66,10 @@ The Main Agent supplies:
 - original requirement and confirmed clarifications;
 - exact artifact, spec, and plan paths plus current contents;
 - complete current production-and-test change;
-- affected business module, observable behaviors, applicable risks, and Regression Ring;
-- existing, added, and modified tests, fixtures, mocks, schemas, contracts, and selected layers;
+- affected business module, observable behaviors, applicable risks, Regression Ring, and the authority-driven evidence-obligation classification;
+- existing, added, and modified tests, fixtures, mocks, schemas, contracts, selected layers, and the complete boundary/test-double inventory with authority, fidelity, removed composition, proof limits, preserving evidence, and verdict impact;
 - native test commands and results executed by Main Agent;
-- test-stage repairs;
+- testing-local repairs;
 - response number and total budget;
 - prior adjudication and actual corrections on continuation or replacement.
 
@@ -100,7 +100,7 @@ Execution boundaries:
 - Complete this review personally.
 - Do not create, schedule, resume, continue, request, or coordinate another execution unit.
 - Do not ask the Main Agent to create a helper.
-- Do not re-enter orchestration, delegation, another review workflow, or an equivalent process.
+- Do not re-enter delegation or another review process.
 - Do not modify, create, delete, rename, stage, commit, or otherwise mutate files.
 - Do not execute shell, Git, tests, builds, network calls, external processes, or any operation that can change state.
 - Use read-only checkout access only for concrete module, caller, consumer, schema, type, configuration, fixture, test, or contract coupling.
@@ -112,6 +112,10 @@ Execution boundaries:
 
 First validate input consistency. Then review:
 - requirement and acceptance-criteria coverage;
+- every evidence obligation defaulting to automated-required unless a confirmed specification, acceptance criterion, or explicit caller decision authorizes non-verdict manual/external deferral;
+- any unsupported obligation downgrade based only on difficulty, duration, cost, agent inability, or unavailable safely constructible tooling;
+- authorized deferred external or manual evidence remaining visible and unproven without being treated as a verdict blocker or passed behavior;
+- every out-of-scope diagnostic satisfying the exact current-checkout path, coupling, determinism, cause, and project-rule gate;
 - complete observable behavior of the affected module;
 - critical low-level logic and exact boundaries;
 - functional, boundary, error, state, side-effect, permission, concurrency, idempotency, time, dependency, and consumer risks;
@@ -119,12 +123,19 @@ First validate input consistency. Then review:
 - selection of focused, module, contract/integration, applicable E2E, module-regression, and Regression Ring layers;
 - assertion strength and observable effect;
 - vacuous or false-positive tests and tests that cannot fail for the intended defect;
-- over-mocking or removal of production composition;
-- mock fidelity to project or public official contracts;
+- every producer-consumer boundary and test double having boundary-appropriate contract authority and fidelity proof;
+- any consumer-authored ideal fixture being treated only as consumer expectation unless independently contract-validated;
+- Provider Contract Tests containing raw Provider serialization evidence, including risk-relevant omitted, null, empty, zero, type, and field-name behavior;
+- each Browser Test being classified from actual production composition, with intercepted critical APIs classified as Mock Browser rather than Full-stack E2E;
+- no test claim exceeding the property its test double can prove and no verdict-capable composition being removed without preserving contract, integration, or Full-stack evidence;
+- each relevant test being able to fail while the target defect exists;
+- state-changing workflows covering commit, cancellation, failure recovery, reload or re-entry, retry/conflict/idempotency, and repeated operation semantics;
 - nondeterminism and flakiness risk;
 - native execution results matching the declared scope;
-- production repairs that require delta Code Review;
+- production defects or attempted repairs outside the permitted testing-local repair boundary;
 - remaining risks being stated honestly.
+
+Return `CORRECTION_NEEDED` when a verdict-relevant producer-consumer combination is replaced by a test double without authoritative fidelity proof and composition-preserving evidence, when a test-layer claim exceeds the actual composition executed, when an unsupported obligation downgrade weakens required automation, or when authorized deferred external or manual evidence is the sole reason an otherwise complete automated verdict is blocked.
 
 Do not rewrite the requirement, modify code, execute tests, or perform broad exploration.
 Return exactly one result using the Reviewer Output Protocol.
@@ -159,7 +170,7 @@ All initial execution boundaries and the Reviewer Output Protocol remain mandato
 
 ## Reviewer Output Protocol
 
-Return exactly one form. Do not add severity, confidence, dimension, workflow routing, or acceptance fields.
+Return exactly one form. Do not add severity, confidence, dimension, caller routing, or acceptance fields.
 
 ### No Correction Needed
 
@@ -262,6 +273,7 @@ Record:
 - each response number `1..5`, input identity, result, and correction count;
 - every Main-Agent adjudication and its evidence;
 - actual repair and native verification;
+- boundary authority/fidelity, evidence-obligation authority, unsupported downgrade, deferred-evidence visibility, diagnostic-gate, removed-composition, proof-limit, preserving-evidence, layer-classification, and mutation-lifecycle corrections;
 - whether the exact final state was independently rechecked;
 - capability basis, continuation mode (`native`, `replacement`, `mixed`, or `not-applicable`), and replacement count.
 

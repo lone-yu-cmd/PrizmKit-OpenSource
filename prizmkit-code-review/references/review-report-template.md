@@ -16,6 +16,21 @@ Within that execution, append sections only. Never edit or replace an earlier pr
 
 ## Progress Sections
 
+### Review Scope
+
+Append once after workspace inventory classification and before the first review round:
+
+```markdown
+## Review Scope
+
+- In-Scope Paths:
+  - <exact requirement-owned path or None.>
+- Default-Excluded Changed Paths:
+  - <exact .prizmkit/support path or None.>
+```
+
+Paths under `.prizmkit/**` and generated host-support paths are visible exclusions, not reviewed content.
+
 ### Main-Agent Review Round
 
 ```markdown
@@ -114,7 +129,7 @@ Exactly one Final Result terminates a completed execution:
 - Start of a new execution removes stale progress and terminal results from prior executions.
 - A phase appends its result before the next phase starts.
 - Main-Agent round numbers are from `1` through `10`; independent Reviewer response numbers are from `1` through `5`.
-- Independent Reviewer results are `NO_CORRECTION_NEEDED`, `CORRECTION_NEEDED`, or `REVIEW_BLOCKED`; they never replace the terminal lifecycle verdict.
+- Independent Reviewer results are `NO_CORRECTION_NEEDED`, `CORRECTION_NEEDED`, or `REVIEW_BLOCKED`; they never replace the terminal review verdict.
 - For an independent round, `accepted + rejected + unresolved = corrections`; `NO_CORRECTION_NEEDED` requires zero corrections.
 - Finding counts satisfy `accepted + rejected + unresolved = findings`.
 - `PASS` requires every accepted finding fixed and zero unresolved findings.
@@ -122,4 +137,4 @@ Exactly one Final Result terminates a completed execution:
 - An IN_PROGRESS report without Final Result is incomplete.
 - Generic or incidental verdict text outside the last Final Result does not prove completion.
 - Do not append any section after Final Result.
-- A separate review-state JSON file is not required; the shared workflow state under `.prizmkit/state/workflows/` may record lifecycle handoff and recovery metadata.
+- Do not create a separate review-state JSON file; `review-report.md` is the complete stage artifact.

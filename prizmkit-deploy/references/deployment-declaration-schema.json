@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prizmkit.dev/schemas/deployment-declaration.schema.json",
+  "title": "Optional PrizmKit Deployment Declaration",
+  "description": "Complete non-sensitive schema for optional prizmkit.deploy.json. The file is advisory evidence, not execution authorization. Secret values are prohibited.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project_root",
+    "native_config_files",
+    "profile_hints",
+    "secret_references",
+    "commands",
+    "capability_hints"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "project_root": {
+      "const": "."
+    },
+    "native_config_files": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/projectRelativePath"
+      }
+    },
+    "profile_hints": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/profileHint"
+      }
+    },
+    "secret_references": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/secretReference"
+      }
+    },
+    "commands": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/command"
+      }
+    },
+    "capability_hints": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/capabilityHint"
+      }
+    }
+  },
+  "$defs": {
+    "capabilityName": {
+      "enum": [
+        "discover",
+        "connect",
+        "authenticate",
+        "build",
+        "package",
+        "transfer",
+        "configure",
+        "migrate",
+        "release",
+        "start",
+        "stop",
+        "restart",
+        "rollback",
+        "status",
+        "health",
+        "logs",
+        "history",
+        "validate",
+        "diagnose",
+        "takeover"
+      ]
+    },
+    "projectRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*//)(?!.*\/$)(?!\\.{1,2}(?:/|$))(?!.*(?:/)\\.{1,2}(?:/|$))[^\\u0000-\\u001f\\u007f-\\u009f\\ud800-\\udfff]+$"
+    },
+    "projectRelativeDirectory": {
+      "oneOf": [
+        {
+          "const": "."
+        },
+        {
+          "$ref": "#/$defs/projectRelativePath"
+        }
+      ]
+    },
+    "profileHint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "environment",
+        "target_ref",
+        "endpoint_ref",
+        "actual_ports",
+        "health_boundary"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "endpoint_ref": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "actual_ports": {
+          "type": "array",
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          }
+        },
+        "health_boundary": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/healthCheck"
+          }
+        }
+      }
+    },
+    "healthCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "target_ref",
+        "expected",
+        "required"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "kind": {
+          "enum": [
+            "command",
+            "service_state",
+            "network",
+            "application",
+            "target_native"
+          ]
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "expected": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "secretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Name and external source reference only; never include a Secret value, hash, token, password, key, cookie, header, or connection string.",
+      "required": [
+        "name",
+        "source_ref",
+        "required"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_.-]{0,127}$"
+        },
+        "source_ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "required": {
+          "type": "boolean"
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "executable",
+        "args",
+        "working_directory",
+        "source"
+      ],
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/capabilityName"
+        },
+        "executable": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "args": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "working_directory": {
+          "$ref": "#/$defs/projectRelativeDirectory"
+        },
+        "source": {
+          "enum": [
+            "project_native",
+            "user_confirmed"
+          ]
+        }
+      }
+    },
+    "capabilityHint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capability",
+        "evidence_files",
+        "manual_checkpoint",
+        "notes"
+      ],
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/capabilityName"
+        },
+        "evidence_files": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/projectRelativePath"
+          }
+        },
+        "manual_checkpoint": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 512
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 512
+        }
+      }
+    }
+  }
+}

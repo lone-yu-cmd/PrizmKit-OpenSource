@@ -47,7 +47,7 @@ Rules:
 
 ## Review Input
 
-Resolve exact requirement identity from workflow state or explicit handoff on every response:
+Use the exact caller-supplied review identity on every response:
 
 ```text
 artifact_dir: [EXACT_ARTIFACT_DIR]
@@ -62,14 +62,15 @@ The Main Agent supplies:
 
 - original requirement and confirmed clarifications;
 - exact artifact, spec, and plan paths plus current contents;
-- current workspace status;
-- staged and unstaged tracked changes;
-- relevant untracked, deleted, and renamed content;
+- current workspace status after the Main Agent classifies default exclusions;
+- staged and unstaged tracked changes in the ordinary correctness scope;
+- relevant in-scope untracked, deleted, and renamed content;
+- exact default-excluded changed paths as visible exclusion metadata, never as reviewed content;
 - implementation task completion and targeted verification results;
 - response number and total budget;
 - prior adjudication, actual repairs, and repair verification on continuation or replacement.
 
-The Main Agent runs Git and captures authoritative current-change state. The Reviewer may use structurally read-only checkout access to inspect unchanged callers, consumers, contracts, schemas, types, configurations, fixtures, or tests only when concrete coupling to this requirement justifies it. It must not run commands or perform an unconditional repository-wide scan. Missing or inconsistent required input produces `REVIEW_BLOCKED`, never partial success.
+The Main Agent runs Git and captures authoritative current-change state, then applies the Skill's default `.prizmkit/**` and generated host-support exclusions before supplying the correctness change. The Reviewer may read the exact supplied spec/plan artifacts but must not inspect other `.prizmkit` content. It may use structurally read-only checkout access to inspect unchanged callers, consumers, contracts, schemas, types, configurations, fixtures, or tests only when concrete coupling to this requirement justifies it. It must not run commands or perform an unconditional repository-wide scan. Missing or inconsistent required input produces `REVIEW_BLOCKED`, never partial success.
 
 ## Initial Reviewer Prompt
 
@@ -95,7 +96,7 @@ Execution boundaries:
 - Complete this review personally.
 - Do not create, schedule, resume, continue, request, or coordinate another execution unit.
 - Do not ask the Main Agent to create a helper.
-- Do not re-enter orchestration, delegation, another review workflow, or an equivalent process.
+- Do not re-enter delegation or another review process.
 - Do not modify, create, delete, rename, stage, commit, or otherwise mutate files.
 - Do not execute shell, Git, tests, builds, network calls, external processes, or any operation that can change state.
 - Use read-only checkout access beyond changed files only for concrete module, caller, consumer, schema, type, configuration, fixture, or test coupling.
@@ -139,7 +140,7 @@ All initial execution boundaries and the Reviewer Output Protocol remain mandato
 
 ## Reviewer Output Protocol
 
-Return exactly one of these forms. Do not add severity, confidence, dimension, workflow impact, or acceptance fields.
+Return exactly one of these forms. Do not add severity, confidence, dimension, caller routing, or acceptance fields.
 
 ### No Correction Needed
 
@@ -187,7 +188,7 @@ Every correction contains only `Target`, `Problem`, `Evidence`, and `Correction`
 No review verdict was produced.
 ```
 
-`REVIEW_BLOCKED` is an internal independent-review result, not a lifecycle verdict.
+`REVIEW_BLOCKED` is an internal independent-review result, not the code-review stage verdict.
 
 ## Main-Agent Adjudication
 
@@ -234,11 +235,11 @@ Behavior:
 6. Reviewer input problems may be corrected within remaining shared budget using native continuation or a compliant replacement.
 7. Report temporary input-cleanup failures honestly; cleanup failure does not change an otherwise verified review result.
 
-Strict downgrade is visible reduced assurance, not a new lifecycle verdict and not permission to weaken the gate.
+Strict downgrade is visible reduced assurance, not a new terminal review verdict and not permission to weaken the gate.
 
 ## Report Recording
 
-Use the existing append-only `review-report.md` lifecycle and renderer events:
+Use the existing append-only `review-report.md` structure and renderer events:
 
 - `independent-review-round`: response number `1..5`, result, correction count, adjudication counts, and next action;
 - `independent-adjudication`: correction summary, `accepted | rejected | unresolved`, evidence, and actual modification;

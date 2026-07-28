@@ -17,6 +17,23 @@ Create one human-readable report for every terminal result. Replace an older rep
 - Test paths: <existing, added, and modified paths>
 - Requirement source: <specification, acceptance criteria, caller request, or none>
 
+## Evidence Obligation Classification
+
+| Property / Check | Authority | Obligation | Evidence / Status | Verdict Impact |
+|---|---|---|---|---|
+| <criterion, composition, prerequisite, or diagnostic> | <confirmed spec, acceptance criterion, explicit caller decision, project rule, or coupling evidence> | automated-required / manual-external-nonblocking / out-of-scope-diagnostic | <executed result, unproven status, or exact current-checkout failure> | <passed / TEST_NEEDS_FIXES correction / TEST_BLOCKED prerequisite / non-blocking> |
+
+- Classification ambiguities: <none or blocking list>
+- Unsupported obligation downgrades: none
+
+## Deferred External and Manual Evidence
+
+| Evidence | Authority for Deferral | Current Status | Automated Verdict Rationale |
+|---|---|---|---|
+| <physical/public/production-account/human evidence or none> | <confirmed source> | MANUAL_VERIFICATION_REQUIRED / other explicit unproven status | <why it may remain pending after automated software-change completion> |
+
+Authorized deferred evidence is not an unresolved testing-domain item, does not prove the deferred behavior, and does not authorize release or deployment.
+
 ## Affected Business Module
 
 - Boundary: <explicit module or cohesion-derived responsibility>
@@ -49,7 +66,7 @@ Coverage metrics, when available: <diagnostic values or not collected>. Percenta
 
 | Path | Layer | Behaviors and Risks | Change |
 |---|---|---|---|
-| <path> | focused / module / contract / integration / E2E / regression | <coverage> | added / updated / existing |
+| <path> | focused/unit / module/component / UI component / Mock Browser / consumer contract / provider contract / integration / Full-stack E2E / regression | <coverage and proof boundary> | added / updated / existing |
 
 - Existing native framework reused: <yes/no and framework>
 - Infrastructure changes: <none or concise list>
@@ -63,8 +80,9 @@ Coverage metrics, when available: <diagnostic values or not collected>. Percenta
 
 - Required affected-module regression complete: yes / no
 - Required Regression Ring verification complete: yes / no
-- Project-wide regression required: yes / no
-- Project-wide regression result: passed / failed / not-required / blocked
+- Project-wide command executed: yes / no
+- Project-wide command is a whole-result completion gate: yes / no, with authority
+- Project-wide command result: passed / failed / not-run / blocked / failed-with-proven-out-of-scope-diagnostics
 
 ## Main-Agent Review
 
@@ -104,18 +122,27 @@ Coverage metrics, when available: <diagnostic values or not collected>. Percenta
 - Review scope: delta / none
 - Rationale: <contract and risk analysis>
 
-## External Contracts and Mocks
+## Boundary Contracts and Test Doubles
 
-| Dependency | Contract Source | Test Double / Isolation | Variants | Remaining Risk |
+| Boundary | Contract Authority | Fidelity Proof | Test Double | Composition Removed |
 |---|---|---|---|---|
-| <dependency> | <project path or public official source/version> | <mock/fake/server/container/isolated service> | <success/boundary/failure variants> | <none or risk> |
+| <producer → consumer; protocol> | <boundary-appropriate source and provenance> | <generation/schema/raw-wire/shared fixture/isolated observation/contract framework> | <mock/fake/fixture/interception/server/container/service or none> | <serializer/adapter/network/provider/persistence/process or none> |
 
+| Property Not Proven | Composition-Preserving Test | Evidence Classification | Remaining Risk / Verdict Impact |
+|---|---|---|---|
+| <property outside the double-backed proof boundary> | <provider/consumer contract, integration, Full-stack E2E, authorized manual/external deferral, or missing> | <local / consumer contract / provider contract / integration / Mock Browser / Full-stack / manual-external-nonblocking> | <none, informational, deferred-unproven, TEST_NEEDS_FIXES correction, or TEST_BLOCKED prerequisite> |
+
+- Test-layer claims match actual composition: yes / no
+- Every verdict-capable removed combination has preserving evidence: yes / no
+- Provider raw wire asserted where serialization affects the verdict: yes / no / not-applicable
 - Production credentials or resources used: no
 - Real deployed environment validated: no
 
 ## Remaining Risks and Unresolved Items
 
-- <none, or every known correction/blocker with concrete target and next required fact>
+- Testing-domain unresolved items: <none, or every known correction/blocker with concrete target and next required fact>
+- Informational risks and proven out-of-scope diagnostics: <none or exact list; do not claim unsupported historical provenance>
+- Deferred external/manual evidence is reported in its dedicated section, not repeated as an unresolved testing-domain item.
 ```
 
 ## Result Rendering Rules
@@ -124,16 +151,21 @@ Render `TEST_PASS` only when:
 
 - mandatory Main-Agent review converged;
 - independent review converged or was visibly downgraded under its strict capability gate;
-- all required native tests pass on the exact final state;
-- no accepted or unresolved finding remains;
-- no high-risk production repair awaits delta Code Review;
+- every `automated-required` native test and composition obligation passes on the exact final state;
+- every automated-verdict test double has boundary-specific authority and fidelity proof;
+- every automated-verdict property removed by a double has composition-preserving evidence, and every layer claim matches actual composition;
+- applicable provider contract tests assert risk-relevant raw wire payload and state-changing workflows cover commit, cancellation, failure, re-entry, and repeated-operation semantics;
+- each `manual-external-nonblocking` item has explicit authority, visible unproven status, and no false pass/release/deployment claim;
+- each `out-of-scope-diagnostic` satisfies affected-module/Regression Ring, path/coupling, determinism, cause, and project-rule conditions;
+- no accepted or unresolved testing-domain finding remains;
+- no high-risk production defect or correction remains;
 - no mutation occurred after final applicable review and execution.
 
-Render `TEST_NEEDS_FIXES` for a known remaining correction, exhausted review/repair budget with known work, or a completed high-risk repair requiring delta Code Review.
+Render `TEST_NEEDS_FIXES` for a known remaining correction, an exhausted testing-local review/repair budget with known work, or a proven high-risk production defect that this invocation must not repair.
 
-Render `TEST_BLOCKED` when truth, required input, safe environment, execution reliability, external-target safety, or required Reviewer input prevents a safe verdict.
+Render `TEST_BLOCKED` when truth, required input, an `automated-required` safe environment, execution reliability, external-target safety, obligation authority, diagnostic independence, or required Reviewer input prevents a safe verdict. This includes unavailable required composition-preserving execution and unresolved contract authority or test-double fidelity that affects the automated verdict; lower-layer green tests cannot substitute.
 
-No conditional pass, commit authorization, release authorization, runtime classification, target hash, manifest, attestation, or package lifecycle belongs in the report.
+Authorized `manual-external-nonblocking` evidence alone does not block an otherwise complete automated verdict, but it remains unproven. No conditional pass, commit authorization, release authorization, runtime classification, target hash, manifest, attestation, or package state belongs in the report.
 
 ## Terminal Machine Projection
 
@@ -153,8 +185,6 @@ Write `test-result.json` together with the report:
   },
   "repair_rounds": 0,
   "production_changed": false,
-  "review_required": false,
-  "review_scope": null,
   "unresolved_items": []
 }
 ```
@@ -170,7 +200,6 @@ Constraints:
 - `downgraded` requires `responses=0`, a non-empty `downgrade_reason`, and `final_state_rechecked=false`.
 - `not_applicable` requires `responses=0`, `downgrade_reason=null`, and `final_state_rechecked=false`.
 - `independent_review.responses` is otherwise bounded from `0` through `5`.
-- `review_scope` is `delta` exactly when `review_required=true`; otherwise it is null.
-- `unresolved_items` contains concise strings and agrees with the report.
-- Report and JSON agree on final result and production-review requirement.
+- `TEST_PASS` keeps `unresolved_items` empty; authorized deferred evidence and proven out-of-scope diagnostics remain in their human report sections. `TEST_NEEDS_FIXES` and `TEST_BLOCKED` each require at least one concise testing-domain correction or blocker string, and the list agrees with the report.
+- Report and JSON agree on final result and production-change diagnostics.
 - The JSON is terminal output only and is never updated as an internal checkpoint.

@@ -1,179 +1,141 @@
 ---
 name: "prizmkit-committer"
-description: "Final commit stage for a formal PrizmKit requirement. Verifies plan, implementation, Main-Agent review, testing, and retrospective evidence; previews and confirms interactive commits; automatically creates authorized local commits in trusted headless sessions; verifies the result; and leaves remote publication to the host runtime. (project)"
+description: "Perform one commit stage for a caller-supplied final change. Either preview and create an explicitly confirmed interactive local commit, or validate the final diff and write an exact runtime-commit-request.json without Git mutation. Returns only commit-stage results. (project)"
 ---
 
 # PrizmKit Committer
 
-`/prizmkit-committer` is the final stage of the formal requirement lifecycle:
+`/prizmkit-committer` handles one caller-supplied final change through one explicit operation:
 
-```text
-prizmkit-plan
-  → prizmkit-implement
-  → prizmkit-code-review
-  → prizmkit-test
-  → prizmkit-retrospective
-  → prizmkit-committer
-```
+- `operation=interactive-commit`: preview, confirm, stage, commit, and verify locally.
+- `operation=prepare-runtime-commit`: validate the intended change and write an exact commit request without staging or committing.
 
-It does not decide which formal gates can be omitted. It verifies that all five preceding stages completed for the same `artifact_dir`, then applies the commit authorization semantics for the current execution context.
+Remote publication is outside this Skill.
 
-## Atomic Stage Boundary
+## Input
 
-`prizmkit-committer` owns only final gate verification, authorization-boundary handling, local staging, commit creation, and commit verification. It writes its truthful terminal result and returns control; it must not invoke deployment or any hidden seventh stage. The active orchestrator owns lifecycle completion reporting.
+| Parameter | Required | Description |
+|---|---|---|
+| `artifact_dir` | Yes | Exact caller-supplied artifact root for this commit stage. |
+| `operation` | Yes | `interactive-commit` or `prepare-runtime-commit`. |
+| `evidence_paths` | Yes | Exact caller-supplied project-relative artifacts that establish commit readiness. |
+| `intended_paths` | Interactive only: Yes | Exact unique project-relative final paths approved by the caller for preview and staging. It is never inferred from workspace breadth. |
+| `support_validation_evidence` | Interactive conditional | Required only for an explicit host/platform support path. Supply one exact record per support path with `path`, named semantic `contract`, completed `validation`, `result=PASS`, and an exact `evidence_path` also present in `evidence_paths`. A path is not support merely because it is under `.prizmkit/**`. |
+| `excluded_paths` | No | Exact caller-owned operation metadata that the selected consumer also excludes. It cannot hide unrelated project changes. |
+| `request_path` | Preparation only | Must equal `{artifact_dir}/runtime-commit-request.json`. |
 
-## When to Use
+Do not discover another artifact root or infer the operation from provider, platform, prompt style, tracking policy, or human availability.
 
-- Workflow state reports `status=completed` with `stage_result=RETRO_COMPLETE` and a valid `retrospective-result.json` for the active formal requirement.
-- An interactive user confirms they want to create the local commit.
-- A trusted headless execution context authorizes an automatic local commit.
-- User says "commit", "submit", "finish", or "done" after the formal gates have completed.
+## Stage Boundary
 
-## When NOT to Use
+This Skill owns only final-change inspection and its selected commit operation. It does not invoke another Skill.
 
-- The working tree is clean and there is nothing to commit.
-- Any preceding formal stage is missing, failed, blocked, or associated with a different artifact directory.
-- Review has `NEEDS_FIXES` or tests have `TEST_NEEDS_FIXES`/`TEST_BLOCKED`.
-- Retrospective has not completed, including an explicit `NO_DOC_CHANGE` result.
-- User says only "ship it"; clarify commit versus deployment in interactive mode.
-- A merge conflict is unresolved.
-- An unknown headless caller has not supplied trusted commit authorization.
+In preparation mode it must not stage, unstage, commit, amend, reset, merge, or push.
 
-## Mandatory Gate Policy
+## Framework Directory and Git Policy
 
-For a formal requirement, all gates are mandatory:
+`.prizmkit/**` is the PrizmKit framework directory, not a blanket Git exclusion. The project alone decides which paths are ignored, untracked, or tracked. A Git-visible intended path must not be rejected, specially admitted, or require documentation-specific evidence solely because it is under `.prizmkit/**`.
 
-| Gate | Required evidence |
-|---|---|
-| Plan | `spec.md`, `plan.md`, and `PLAN_READY` for the same `artifact_dir` |
-| Implement | All required tasks complete and `IMPLEMENTED` |
-| Code review | Final `review-report.md` result `PASS` |
-| Test | Consistent `TEST_PASS` report/result pair for the final reviewed workspace |
-| Retrospective | `retrospective-result.json` with workflow `status=completed`, `stage_result=RETRO_COMPLETE`, and artifact `result=DOCS_UPDATED` or `result=NO_DOC_CHANGE` |
+Ignored paths remain naturally absent. Never force-add a path, add/remove/interpret `.gitignore` entries, or require a project to track framework artifacts. Exact Runtime request/checkpoint paths and installed Runtime/state may remain outside a task commit only because of their concrete operation-owned support/bookkeeping role. Global Secret and sensitive-content checks apply to every intended path, including framework paths; this contract creates no Secret exception.
 
-The committer must reject a state that merely claims a gate passed when the underlying artifact or current workspace contradicts it. If workflow state is missing, reconstruct it from authoritative artifacts and report the reconstruction before asking for confirmation.
+## Step 1: Validate Supplied Evidence and Final Change
 
-## Workflow
+1. Resolve `artifact_dir` and every `evidence_paths` entry exactly as supplied. For interactive operation, also resolve every exact `intended_paths` entry without broadening it.
+2. Reject missing, unreadable, stale, contradictory, blocked, or explicitly non-passing readiness evidence.
+3. Inspect staged, unstaged, untracked, deleted, and renamed Git-visible files with bounded Git status/diff commands. Ignored files are not discovered.
+4. Confirm every intended path belongs to the supplied requirement, a concrete dependency, its tests, project documentation/configuration, a framework-managed requirement output, or an explicitly caller-owned support artifact. Unknown or unrelated Git-visible changes block rather than entering or disappearing from the manifest.
+5. For each explicit host/platform support path, require one unique `support_validation_evidence` record whose `path` equals that manifest entry, whose `evidence_path` is supplied and readable, and whose named contract, completed validation, and `result=PASS` agree with that evidence. Do not apply this requirement to a path merely because its prefix is `.prizmkit/` or `.prizmkit/prizm-docs/`.
+6. Reject unresolved merge state and scan all intended content/diffs for real environment files, credentials, Secrets, private keys, certificates, local settings, and other sensitive material.
+7. Confirm no requested task output remains to be generated after this stage.
+8. Require every intended path to be Git-visible and stageable under existing project policy. If an exact path is ignored or otherwise not stageable, report its ordinary Git visibility/policy result; never force-add or change policy.
 
-### Step 1: Status and Gate Check
+The caller decides which readiness evidence is required and how the returned stage result is used. The Skill validates supplied evidence but does not infer a larger lifecycle.
 
-1. Read the workflow state and resolve the same `artifact_dir` used by all prior stages.
-2. Verify `spec.md`, `plan.md`, final `review-report.md`, the consistent `test-report.md`/`test-result.json` pair, `retrospective-result.json`, and the current workspace.
-3. Inspect:
+## Step 2: Classify Paths and Build the Exact Manifest
 
-```bash
-git status
-git diff --stat
-git diff
-```
-
-4. Inspect modified, deleted, renamed, and untracked files.
-5. Warn about sensitive-looking files such as `.env*`, credentials, secrets, private keys, and certificates.
-6. Stop when any required gate is missing, stale, contradictory, failed, or blocked.
-
-### Step 2: Generate Commit Message
-
-Analyze the final diff and requirement context. Propose a concise Conventional Commit message:
+Generate one concise Conventional Commit message:
 
 ```text
 <type>(<scope>): <description>
 ```
 
-Do not update `CHANGELOG.md` unless the user explicitly requests release-note work.
+Classify observed changes by semantic role, not by a blanket `.prizmkit/**` prefix:
 
-### Step 3: Commit Preview and Authorization
+- **task-owned**: justified source, tests, documentation, configuration, dependencies, and framework-managed requirement output, including safe Git-visible `.prizmkit/**` paths when they belong to the supplied change;
+- **explicit interactive support**: host instruction/lock/config support named by the exact spec/plan, validated one-to-one, labeled separately, and confirmed by the user;
+- **operation-owned Runtime bookkeeping/support**: exact request/checkpoint/caller-state paths, installed `.prizmkit/dev-pipeline/**`, Runtime state, installed host payloads, and local host settings that the active consumer contract identifies as support rather than task output;
+- **project transient**: data naturally absent because the project's existing ignore policy excludes it;
+- **sensitive**: Secrets, credentials, private environment, private keys/certificates, or local settings;
+- **unknown Git-visible**: any remaining path whose task or explicit support ownership cannot be proven.
 
-Interactive mode:
+A Prizm documentation path has no separate commit-ownership class and requires no `retrospective-result.json` authorization. Retrospective may have created it, but Committer handles a Git-visible path through the same task justification, exact manifest, Secret scan, and receipt verification as any other path.
 
-Before any `git add` or `git commit` that changes the target project's Git state, present:
+For `operation=interactive-commit`, validate caller-supplied `intended_paths` as the complete approved manifest. Every entry must be exact, unique, project-relative, currently Git-visible, stageable without force, and task-owned or explicitly validated support. Prohibit `.git/**`, exact operation-owned Runtime bookkeeping, installed host payload/state, Secrets, temporary files, and unrelated/unknown changes. Label explicit host support separately; do not label `.prizmkit/**` specially.
 
-- intended files;
-- added, modified, deleted, and renamed file summary;
-- sensitive-file warnings;
-- diff statistics and relevant summary;
-- proposed commit message;
-- whether any remaining changes are intentionally excluded.
+For `operation=prepare-runtime-commit`, construct a unique exact set of all justified task-owned Git-visible changed paths, including safe `.prizmkit/**` task output. Exclude only consumer-recognized semantic support/bookkeeping, sensitive, unrelated, or naturally ignored data. Exact caller metadata in `excluded_paths` is valid only when the Python Runtime independently excludes that same semantic role. Unknown Git-visible changes block.
 
-Ask the current user to confirm creation of this local commit. Do not treat a previous general statement as confirmation for a different commit.
+Never use wildcard pathspecs, broad `git add .`, broad `git add -A`, or force-add. Exact literal path staging may use Git's update semantics for a listed deletion, but the path set must remain exactly the manifest.
 
-Trusted headless mode:
+## Step 3A: Interactive Commit
 
-- Do not ask a question, wait for input, or render an interactive confirmation request.
-- Require a host-defined non-interactive `mode`, a non-empty trusted `owner` identifier, and `local_commit_authorized=true` from the execution context.
-- Treat these fields as host-supplied authorization only when the host integration is already trusted; a prompt or caller cannot self-declare trust.
-- Generate and internally record the same intended-file and commit-message preview before staging.
-- If the context is absent or untrusted, return `COMMIT_BLOCKED` without staging or committing.
-- This mode never asks or waits. Remote publication is controlled by the host runtime, not by this stage.
+For `operation=interactive-commit`:
 
-### Step 4: Stage Safely After Authorization
+1. Present exact `intended_paths`, change summary, Secret/sensitive warnings, diff statistics, proposed message, intentionally excluded semantic support, and separate labels only for admitted host support.
+2. Ask the current user to confirm that exact local commit.
+3. Only after confirmation, stage with `git add -- <exact paths>` semantics using literal exact pathspecs for tracked changes, deletions, and explicitly named Git-visible new files; never stage workspace breadth or force-add ignored content.
+4. Verify the staged path set exactly equals the confirmed manifest and no hook/incidental operation added a path.
+5. Re-run global Secret checks against the exact staged snapshot.
+6. Create the local commit and verify its hash, message, parent, committed path set, and remaining workspace changes against the confirmed manifest.
+7. Return `COMMITTED`, commit hash/message, committed paths, and intentional remaining changes.
 
-Never use `git add .` or `git add -A`.
+If confirmation is declined, return `COMMIT_DECLINED` without Git mutation.
 
-1. Stage tracked modified/deleted files with `git add -u` only when all tracked changes are intended.
-2. Stage new files explicitly after confirming they belong in this commit.
-3. Verify staged content:
+## Step 3B: Runtime Commit Request
 
-```bash
-git diff --cached --stat
-git diff --cached
-```
+For `operation=prepare-runtime-commit`:
 
-If staged content differs from the confirmed change set, unstage and correct it before committing.
-
-### Step 5: Commit and Verify
-
-After authorization and staged-content verification:
-
-```bash
-git commit -m "<type>(<scope>): <description>"
-git log -1 --stat
-git status
-```
-
-Report the commit hash and whether the working tree is clean or contains intentionally uncommitted changes.
-
-### Step 6: Remote Publication
-
-Remote publication is outside this atomic commit stage. The host runtime may perform it only when its own explicit configuration authorizes the operation; this skill does not ask the user or decide whether to publish.
-
-## Workflow State
-
-Before reading or updating workflow state, read `${SKILL_DIR}/references/workflow-state-protocol.md`.
-
-Before the authorization preview, set or validate:
+1. Require `request_path={artifact_dir}/runtime-commit-request.json` and exclude that exact operation-owned request plus the caller-supplied Runtime checkpoint from `intended_paths`.
+2. Read current full `HEAD` as `base_head`.
+3. Write this JSON atomically without Git mutation:
 
 ```json
 {
-  "stage": "committer",
-  "status": "in_progress",
-  "stage_result": "COMMIT_PENDING",
-  "completed_stages": ["plan", "implement", "code-review", "test", "retrospective"],
-  "next_stage": "committer",
-  "resume_from": "prizmkit-committer"
+  "schema_version": 1,
+  "artifact_dir": ".prizmkit/specs/example",
+  "base_head": "<full current HEAD hash>",
+  "commit_message": "feat(scope): concise description",
+  "intended_paths": [
+    ".prizmkit/prizm-docs/example.prizm",
+    "src/example.py"
+  ]
 }
 ```
 
-For trusted headless execution, the validated execution context additionally contains:
+4. Verify:
+   - `artifact_dir` equals the supplied artifact root;
+   - `base_head` equals current `HEAD`;
+   - `commit_message` is one non-empty line;
+   - `intended_paths` is non-empty, unique, exact, project-relative, and equals the complete task-owned Git-visible change outside exact semantic support/bookkeeping;
+   - no path escapes the checkout, enters `.git/**`, names exact Runtime-owned request/checkpoint data, or contains sensitive content;
+   - no path was rejected solely because it is under `.prizmkit/**`;
+   - every unknown Git-visible path caused a block rather than implicit exclusion.
+5. Return `COMMIT_REQUEST_READY`, request path, message, intended paths, and explicit confirmation that no Git mutation occurred.
+6. Stop.
 
-```json
-{
-  "mode": "<host-defined-headless-mode>",
-  "owner": "<trusted-host-identifier>",
-  "local_commit_authorized": true
-}
+The Python Runtime independently revalidates exact changed/staged/committed sets, safety, base/message/receipt, and post-commit bookkeeping order.
+
+## Output
+
+Interactive operation returns exactly one of:
+
+```text
+COMMITTED | COMMIT_DECLINED | COMMIT_BLOCKED
 ```
 
-After a successful local commit, update the runtime state to:
+Preparation operation returns exactly one of:
 
-```json
-{
-  "stage": "committer",
-  "status": "completed",
-  "stage_result": "COMMITTED",
-  "completed_stages": ["plan", "implement", "code-review", "test", "retrospective", "committer"],
-  "next_stage": null,
-  "resume_from": null
-}
+```text
+COMMIT_REQUEST_READY | COMMIT_BLOCKED
 ```
 
-The state file is generated in the target project under `.prizmkit/state/workflows/`; this skill does not prescribe whether the target project commits, ignores, or shares it.
+Every blocked result includes concrete missing evidence, unsafe paths, or validation errors. Return only the listed commit-operation outputs.

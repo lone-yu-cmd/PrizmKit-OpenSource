@@ -6,8 +6,6 @@ from pathlib import Path
 SKILL_DIR = Path(__file__).resolve().parents[1]
 RETRO_SKILL_DIR = SKILL_DIR.parent / "prizmkit-retrospective"
 EXECUTION_LAYER_PATTERNS = (
-    r"\bL" + r"3\b",
-    r"\bL" + r"4\b",
     r"l" + r"4-headless",
     r"prizmkit-l" + r"4",
     r"L" + r"1\s+(?:toolkit|workflow|state|metadata|stage|runtime)",
@@ -49,16 +47,19 @@ class OpenSourceBoundaryTests(unittest.TestCase):
 
     def test_retrospective_excludes_prizmkit_tree_from_change_input(self):
         for phrase in [
-            "`.prizmkit/` is always excluded from retrospective project-change input scope",
-            "Never use `.prizmkit/` changes themselves as structural-sync input",
+            "exact caller-supplied non-`.prizmkit/` `change_paths`",
+            "Reject paths outside the checkout, paths under `.prizmkit/`",
         ]:
             self.assertIn(phrase, self.retrospective)
-        self.assertIn("':(exclude).prizmkit/**'", self.structural_sync)
-        self.assertIn("apply the same `.prizmkit/` exclusion", self.structural_sync)
         self.assertIn(
-            "Do not scan or mine any `.prizmkit/` file for retrospective knowledge",
-            self.knowledge_injection,
+            "reject paths outside the checkout or under `.prizmkit/`",
+            self.structural_sync,
         )
+        for phrase in [
+            "never broaden the diff",
+            "Existing affected Prizm docs may be read only as update targets",
+        ]:
+            self.assertIn(phrase, self.knowledge_injection)
 
 
 if __name__ == "__main__":

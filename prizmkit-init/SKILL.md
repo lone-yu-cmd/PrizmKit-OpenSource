@@ -23,6 +23,16 @@ Recommended project initialization skill. Scans any brownfield or greenfield pro
 - If artifacts already exist: idempotent status check offers regenerate/skip choices (see Phase 3: Idempotent Status Check)
 - If no source files found in any directory: fall back to greenfield mode
 
+### Artifact Ownership
+
+`.prizmkit/**` is the PrizmKit framework directory. Initialization may read and write only its declared managed artifacts, but it does not stage, commit, force-add, change or interpret `.gitignore`, require Git history, or decide whether those paths are ignored, untracked, or tracked. The project controls Git visibility; initialization behavior is otherwise identical. Root instruction and platform-support files remain support data rather than initialization-owned commit output.
+
+## Host-Neutral Interaction and Discovery
+
+- Ask required questions through the current Host's available user-interaction capability. If no structured interaction capability exists, ask directly in ordinary conversation and wait for the user's answer.
+- Describe required filesystem evidence and bounded discovery results semantically. Do not require a specific tool name, shell, command, or operating system.
+- Platform-specific commands may be shown only as non-normative examples after the Host has established that they are available; an unavailable example never blocks an equivalent Host-native operation.
+
 ## Execution Steps
 
 **Phase 1: Platform Detection**
@@ -71,19 +81,9 @@ BROWNFIELD WORKFLOW (existing project):
 2. Map directory structure using a TWO-TIER model — flat structures lose the nesting relationships that AI needs to navigate the codebase:
    - TOP-LEVEL modules: directories directly under project root that contain source files or sub-directories with source files (e.g. `src/`, `internal/`, `lib/`)
    - SUB-MODULES: directories INSIDE a top-level module (e.g. `src/routes/`, `src/models/`)
-   - A sub-module maps to `.prizmkit/prizm-docs/<M>/<S>.prizm`, never to `.prizmkit/prizm-docs/<S>.prizm` — flattening would create ambiguous paths when two modules have identically-named sub-modules
-   - Exclude: `.git/`, `node_modules/`, `vendor/`, `build/`, `dist/`, `__pycache__/`, `target/`, `bin/`, `.agents/`, `.codex/`, `.claude/`, `.codebuddy/`, `.prizmkit/`
-   - **Scan command** — run this to get a 2-level directory tree (excludes noise directories):
-     ```bash
-     find . -maxdepth 2 -type d \
-       -not -path '*/node_modules/*' -not -path '*/.git/*' \
-       -not -path '*/dist/*' -not -path '*/build/*' \
-       -not -path '*/__pycache__/*' -not -path '*/vendor/*' \
-      -not -path '*/.agents/*' -not -path '*/.codex/*' \
-      -not -path '*/.claude/*' -not -path '*/.codebuddy/*' \
-       -not -path '*/.prizmkit/*' -not -path '*/target/*' \
-       | sed -e 's;[^/]*/;|____;g;s;____|; |;g'
-     ```
+   - Exact `root.prizm` is L0; top-level module M maps to direct-child `.prizmkit/prizm-docs/<M>.prizm` (L1); sub-module S maps to nested `.prizmkit/prizm-docs/<M>/<S>.prizm` (L2). Deeper source ownership remains L2 and never creates L3.
+   - Exclude: `.git/`, `node_modules/`, `vendor/`, `build/`, `dist/`, `__pycache__/`, `target/`, `bin/`, `.agents/`, `.codex/`, `.claude/`, `.codebuddy/`, `.pi/`, and the complete `.prizmkit/` framework directory. This excludes installed `.prizmkit/dev-pipeline/` artifacts but not canonical top-level `dev-pipeline/` source.
+   - **Bounded discovery contract** — use the current Host's available directory-listing or file-search capability to enumerate at most two directory levels, apply the exclusions above before analysis, preserve parent/child relationships, and report the resulting project-relative structure. Do not require a POSIX shell pipeline or any other operating-system-specific command.
 3. Identify entry points by language convention
 4. Catalog dependencies (external packages)
 5. Count source files per directory
@@ -102,7 +102,7 @@ After tech stack detection, determine which development layers exist in the proj
    - **backend**: Express/FastAPI/Gin/etc. in dependencies, or `routes/`/`controllers/` with server code
    - **database**: Prisma/TypeORM/SQLAlchemy/etc. in dependencies, or `migrations/`/`prisma/` directory
    - **mobile**: `pubspec.yaml` (Flutter), `react-native` in package.json, or simultaneous `ios/`+`android/` directories
-3. For mobile signals — if ambiguous (e.g., monorepo with web + ios/android dirs), use `AskUserQuestion` to confirm: "Mobile platform signals detected. Is this project a mobile app?" Options: "Yes, this is a mobile app" / "No, these are for another purpose".
+3. For mobile signals — if ambiguous (e.g., monorepo with web + ios/android dirs), ask the user directly: "Mobile platform signals detected. Is this project a mobile app?" Offer "Yes, this is a mobile app" and "No, these are for another purpose" as clear choices, using the Host-neutral interaction contract above.
 4. Assemble `detected_layers` array (e.g., `["frontend", "backend", "database"]`). If no layers detected (library/CLI project), array is empty.
 
 **Phase 4.6: Infrastructure Quick Scan**
@@ -116,7 +116,7 @@ Detect database and deployment signals, then ask 1-2 brief questions. This phase
    - **Database signals**: ORM/database client dependencies in `package.json`, `requirements.txt`, `go.mod`, `Cargo.toml`, `pyproject.toml` (look for: prisma, typeorm, sequelize, mongoose, sqlalchemy, django, gorm, diesel, sqlx, pg, mysql2, etc.); directories named `migrations/`, `db/`, `schema/`, `prisma/`; environment variables `DATABASE_URL`, `DB_HOST`, `DB_NAME`, `MONGO_URI` in `.env*` files
    - **Deployment signals**: `Dockerfile`, `docker-compose.yml`, `vercel.json`, `fly.toml`, `railway.json`, `netlify.toml`, `cloudflare.json`, `.github/workflows/`, `Procfile`, `app.yaml`, `serverless.yml`, `terraform/`, `pulumi/`
 
-2. **Brief inquiry** (using `AskUserQuestion`, max 2 questions):
+2. **Brief inquiry** (ask through the Host-neutral interaction contract, max 2 questions):
 
    **Question 1 — Database**:
    - If database signals detected: pre-fill with detected info
@@ -168,38 +168,38 @@ Detect database and deployment signals, then ask 1-2 brief questions. This phase
 After Infrastructure Quick Scan completes, check if `detected_layers` is non-empty (from Phase 4.5). If layers were detected, offer a lightweight entry point for rules configuration.
 
 1. If `detected_layers` is empty (library/CLI project) → skip this phase entirely, proceed to Phase 5.
-2. If layers detected, use `AskUserQuestion`:
+2. If layers are detected, ask through the Host-neutral interaction contract:
 
    **Question**: "Detected **{list detected layers}** code. Would you like to set up custom development rules for AI to follow? This helps AI generate code that matches your conventions."
    - **Configure later (Recommended)** — Record layers and configure rules later
    - **Skip entirely** — no custom rules, AI uses general best practices
 
-3. If user picked "Skip entirely" → clear `detected_layers` to empty array, proceed to Phase 5.
-4. If user picked "Configure later" → keep `detected_layers`, proceed to Phase 5. The layers will be written to config.json in Phase 6.
+3. If the user picked "Skip entirely" → preserve `detected_layers` as observed project facts, set `enabled_rule_profiles` to an empty array, and proceed to Phase 5.
+4. If the user picked "Configure later" → preserve `detected_layers`, keep `enabled_rule_profiles` unchanged when already configured or initialize it to an empty array, and proceed to Phase 5. Detection never implies rule adoption.
 
 **Phase 5: Prizm Documentation Generation**
 Invoke prizmkit-prizm-docs (Init operation), passing the two-tier module structure from Phase 4:
-  - Create `.prizmkit/prizm-docs/` directory structure mirroring the source tree (sub-module dirs become subdirectories under `.prizmkit/prizm-docs/<top-level>/`)
-  - Generate `root.prizm` (L0) with project meta and MODULE_INDEX listing only top-level modules. If module count > 15, use MODULE_GROUPS format instead (group by functional domain).
-  - For each module entry in MODULE_INDEX/MODULE_GROUPS, include keyword tags extracted from the module's source files — scan for: exported symbols, imported packages, domain terms in file/directory names. Format: `- module-name [tag1, tag2, tag3]: ...`. Tags help AI match user intent to relevant modules.
-  - Generate L1 docs for top-level modules at `.prizmkit/prizm-docs/<M>.prizm` and for sub-modules at `.prizmkit/prizm-docs/<M>/<S>.prizm`
-  - Skip L2 (lazy generation) — L2 is created later by `/prizmkit-retrospective` when a changed module has meaningful behavior or durable knowledge. During implementation, if an affected L2 is missing, `/prizmkit-implement` reads the target source files as fallback instead of blocking.
-  - Do not create auxiliary `changelog.prizm`, CHANGELOG sections/files, UPDATED/date metadata, feature/bug/refactor/task/session/run/pipeline/workflow IDs, branch names, absolute worktree paths, or `.prizmkit/specs` / `.prizmkit/dev-pipeline` artifact paths; git history is the source of change history
+  - Create only documentation directories needed by complete documents; do not create placeholder sub-module files.
+  - Generate exact `root.prizm` (L0) with `PRIZM_VERSION: 4`, project meta, and MODULE_INDEX listing only top-level modules. If module count > 15 or measured capacity requires it, use MODULE_GROUPS.
+  - For each module entry in MODULE_INDEX/MODULE_GROUPS, include only high-value intent tags and a pointer to one direct-child L1 at `.prizmkit/prizm-docs/<M>.prizm`.
+  - Generate one direct-child L1 structural index for each top-level module. Record source submodules structurally, but emit a SUBDIRS pointer only when its complete nested L2 exists.
+  - Skip all L2 during Init. Before later source modification, read a complete existing relevant L2 and complete resolving pointer documents; if absent, inspect bounded relevant source as fallback without creating a placeholder. `/prizmkit-retrospective` may later create a complete Value-Gate-qualified L2.
+  - Do not create auxiliary `changelog.prizm`, CHANGELOG sections/files, UPDATED/date metadata, feature/bug/refactor/task/session/run/pipeline/workflow IDs, branch names, absolute worktree paths, or `.prizmkit/specs` / `.prizmkit/dev-pipeline` artifact paths; temporal history is outside Prizm memory
 
 **Phase 6: Workspace Initialization**
 6a. Create `.prizmkit/` directory structure (if missing):
-  - `.prizmkit/config.json` (adoption_mode, speckit_hooks_enabled, platform)
+  - `.prizmkit/config.json` (adoption_mode, platform installation metadata, detected_layers, enabled_rule_profiles)
   - `.prizmkit/specs/` (empty)
   - `.prizmkit/plans/` (empty — needed by Phase 7 and future pipeline tasks)
 
 6b. Write detected tech stack to `.prizmkit/config.json`:
    → Read `${SKILL_DIR}/references/config-schema.md` for merge strategy, field definitions, and examples.
 
-6c. Write `detected_layers` to `.prizmkit/config.json` (alongside `tech_stack`):
-   - Field: `"detected_layers": ["frontend", "backend"]` — the layers from Phase 4.5
-   - If user chose "Skip entirely" in Phase 4.7, write empty array `[]`
-   - For greenfield projects (Phase 4.5 skipped): write `[]` — no code layers to configure rules for yet; user can configure rules later when code exists
-   - This field indicates which development layers exist in the project and can be used to determine available rule configuration options.
+6c. Write observed layers and separate rule adoption to `.prizmkit/config.json` (alongside `tech_stack`):
+   - `"detected_layers": ["frontend", "backend"]` records only the observed layers from Phase 4.5 and is never cleared because the user declines rule configuration.
+   - `"enabled_rule_profiles": []` records rule adoption separately. Preserve valid existing entries; initialize an empty array when no profiles are enabled.
+   - For greenfield projects (Phase 4.5 skipped), write both fields as empty arrays until code exists or the user explicitly enables a rule profile.
+   - Future re-detection updates observed layers without silently enabling or disabling rule profiles.
 
 **Phase 7: Project Brief Generation**
 
@@ -297,7 +297,7 @@ Tech stack detected:
 
 Layer Detection:
   Detected layers: frontend, backend, database (from dependency + directory signals)
-  → Stored for config.json
+  → Observed layers stored in config.json independently from rule-profile adoption
 
 Infrastructure Quick Scan:
   Database: PostgreSQL (Prisma) — detected from dependencies
@@ -305,19 +305,19 @@ Infrastructure Quick Scan:
   → Written to the detected main platform instruction file `### Infrastructure` (not `.private.md`)
 
 Rules Quick Entry:
-  Matched layers: frontend (React), backend (Express.js), database (Prisma) → keeping default rules
+  Matched layers: frontend (React), backend (Express.js), database (Prisma) → no rule profiles enabled yet
 
 Modules discovered:
-  src/routes/     → .prizmkit/prizm-docs/routes.prizm (12 files)
-  src/models/     → .prizmkit/prizm-docs/models.prizm (8 files)
-  src/services/   → .prizmkit/prizm-docs/services.prizm (15 files)
-  src/middleware/  → .prizmkit/prizm-docs/middleware.prizm (5 files)
+  src/            → .prizmkit/prizm-docs/src.prizm (top-level L1)
+  src/routes/     → nested source submodule (no placeholder L2 during Init)
+  src/models/     → nested source submodule (no placeholder L2 during Init)
+  src/services/   → nested source submodule (no placeholder L2 during Init)
 
 Project brief: inferred from codebase → confirmed by user
   → .prizmkit/plans/project-brief.md
 
-Generated: root.prizm + 4 L1 docs
-Saved: .prizmkit/config.json (tech_stack + detected_layers recorded)
+Generated: root.prizm + 1 direct-child L1 doc
+Saved: .prizmkit/config.json (tech_stack + detected_layers + enabled_rule_profiles recorded)
 
 Next: Use /prizmkit-plan to start your first feature
 ```
@@ -345,9 +345,9 @@ Tech stack changes detected:
   = frontend: React (unchanged)
 
 Documentation gap-fill:
-  + app/share/[token].prizm (L2) — created (3 source files, meaningful logic)
-  = routes.prizm (L1) — up to date
-  ~ models.prizm (L1) — FILES count updated (8 → 10)
+  = app.prizm (direct-child L1) — up to date
+  source fallback: app/share/[token] (nested L2 absent; no placeholder created)
+  ~ app.prizm (L1) — concise source summary updated
 
 Project brief: inferred from codebase → confirmed by user
   → .prizmkit/plans/project-brief.md (generated)

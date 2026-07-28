@@ -46,7 +46,7 @@ Accept:
 
 - `description`: the natural-language formal requirement;
 - `artifact_dir`: optional explicit requirement artifact root;
-- `execution_mode`: `interactive` by default; headless only when a trusted host explicitly authorizes it;
+- `execution_mode`: `interactive`; external headless automation must invoke atomic stages directly and use its Python runtime for commit execution;
 - `resume`: optional workflow state path or requirement slug for recovery.
 
 If `description` is missing and no resumable workflow is supplied, ask for the requirement before invoking `prizmkit-plan`. External automation must invoke atomic stages directly with its own execution checkpoint rather than nesting this composite workflow.
@@ -57,11 +57,11 @@ If `description` is missing and no resumable workflow is supplied, ask for the r
 
 Invoke `/prizmkit-plan` with the requirement and any explicit `artifact_dir`. Do not write a second plan in this orchestrator.
 
-If initialization context is missing, allow `prizmkit-plan` to recommend initialization and continue with source fallback when the user chooses to proceed. Initialization is a soft prerequisite, not a hidden lifecycle stage.
+If initialization context is missing, let `prizmkit-plan` use its source fallback. Initialization is not a hidden lifecycle stage.
 
 ### 2. Preserve Requirement Identity
 
-Once `prizmkit-plan` resolves an `artifact_dir`, capture it and pass the exact same value to every later stage. The artifact root is generic and is not restricted to one directory family:
+Once `prizmkit-plan` resolves an `artifact_dir`, capture it and pass the exact same value to every later stage. Read `${SKILL_DIR}/references/artifact-identity.md` before deriving or opening workflow state. The artifact root is generic and is not restricted to one directory family:
 
 ```text
 .prizmkit/specs/<requirement-slug>/
@@ -69,35 +69,40 @@ Once `prizmkit-plan` resolves an `artifact_dir`, capture it and pass the exact s
 .prizmkit/refactor/<refactor-id>/
 ```
 
-Never select a different most-recent plan when resuming or handing off. The workflow state path is:
+Never select a different most-recent plan when resuming or handing off. Derive the workflow state path from the exact artifact-directory basename, validate its safe identity, and fail closed if an existing state path belongs to another artifact:
 
 ```text
-.prizmkit/state/workflows/<requirement-slug>.json
+.prizmkit/state/workflows/<requirement-identity>.json
 ```
 
-Read `${SKILL_DIR}/references/workflow-state-protocol.md` for the shared state contract. This workflow state remains distinct from any external host execution checkpoint. The target project controls whether generated `.prizmkit/` files are committed, ignored, or shared; do not modify its Git policy.
+Read `${SKILL_DIR}/references/artifact-identity.md` for path/collision rules and `${SKILL_DIR}/references/workflow-state-protocol.md` for the shared state content contract. This workflow state remains distinct from any external host execution checkpoint. The target project controls whether generated `.prizmkit/` files are committed, ignored, or shared; do not modify its Git policy.
 
 ### 3. Advance Only on Truthful Success
 
 After each atomic stage:
 
-1. Read the stage's actual output and terminal status.
-2. Validate the expected authoritative artifact or evidence and workflow-state transition.
-3. Preserve the same `artifact_dir`.
-4. Continue only on the permitted success status.
-5. Because this composite is the active orchestrator, atomic skills return terminal state and `next_stage` to it; they must not invoke the next stage recursively.
-6. If the host cannot invoke another skill automatically, stop with exactly one deterministic next skill, its `artifact_dir`, and the workflow-state path.
+1. Read the stage-local result and stage-owned artifacts.
+2. Validate those artifacts independently.
+3. Map the domain result to this composite's lifecycle status and update workflow state itself.
+4. Preserve the same `artifact_dir`.
+5. Continue only on the permitted success result.
+6. Supply explicit stage-local inputs to the next invocation; atomic Skills never read this composite's state or choose routing.
+7. If the host cannot invoke another Skill automatically, stop with one deterministic next invocation and caller-owned state path.
 
 Expected transitions:
 
 | Stage | Required success | Next stage |
 |---|---|---|
-| `prizmkit-plan` | `status=completed`, `stage_result=PLAN_READY` | `prizmkit-implement` |
-| `prizmkit-implement` | `status=completed`, `stage_result=IMPLEMENTED` | `prizmkit-code-review` |
-| `prizmkit-code-review` | `status=completed`, `stage_result=REVIEW_PASS` | `prizmkit-test` |
-| `prizmkit-test` | `status=completed`, `stage_result=TEST_PASS` | `prizmkit-retrospective` |
-| `prizmkit-retrospective` | `status=completed`, `stage_result=RETRO_COMPLETE`, with artifact result `DOCS_UPDATED` or `NO_DOC_CHANGE` | `prizmkit-committer` |
-| `prizmkit-committer` | explicit interactive confirmation, then `status=completed` with `stage_result=COMMITTED` | end |
+| `prizmkit-plan` | `PLAN_READY` plus valid `spec.md`/`plan.md` | `prizmkit-implement` |
+| `prizmkit-implement` | `IMPLEMENTED` plus completed task markers | `prizmkit-code-review` |
+| `prizmkit-code-review` | `PASS` plus valid `review-report.md` | `prizmkit-test` |
+| `prizmkit-test` | `TEST_PASS` plus a consistent report/result pair with `production_changed=false` | `prizmkit-retrospective` |
+| `prizmkit-retrospective` | `RETRO_COMPLETE` plus an artifact whose `outcome` and `result` agree | `prizmkit-committer` |
+| `prizmkit-committer` | `COMMITTED` after explicit interactive confirmation | end |
+
+Before accepting a Test transition, require `production_changed` to be a boolean and agree between `test-report.md` and `test-result.json`. A passing result with `production_changed=true` follows the bounded production-repair route below and is not final Test authority for Retrospective.
+
+Before invoking `prizmkit-retrospective`, derive the exact changed project paths outside `.prizmkit/` and pass them as `change_paths` with a concise `change_summary`. Do not ask that atomic Skill to infer scope from this composite's state or earlier artifacts.
 
 `TEST_NOT_APPLICABLE` is not a valid lifecycle success. Lightweight changes must execute deterministic verification and return `TEST_PASS`.
 
@@ -106,16 +111,16 @@ Expected transitions:
 The composite must not:
 
 - reinterpret a plan as implementation;
-- repair production code outside `prizmkit-implement` or the Main-Agent review loop;
+- repair production code itself instead of invoking the appropriate atomic stage with explicit repair input;
 - claim tests passed without a consistent `test-report.md` and terminal `test-result.json`;
 - reinterpret testing-domain results as runtime/session outcomes;
 - perform retrospective documentation changes itself;
-- stage or commit before `prizmkit-committer` applies the current execution's authorization boundary;
+- stage or commit before `prizmkit-committer` completes the interactive preview and confirmation boundary;
 - invoke `prizmkit-deploy` as a hidden seventh stage.
 
 ## Failure and Repair Routing
 
-Use the shared workflow state and authoritative stage evidence to determine routing. Do not blindly retry every failure.
+Use caller-owned workflow state and authoritative stage artifacts to determine routing. Atomic Skills never own this decision.
 
 ### Review Failure
 
@@ -129,6 +134,28 @@ prizmkit-implement
 
 The Main-Agent review skill owns its internal review repairs and its internal ten-round limit before returning its terminal result. The outer workflow repair counter is separate.
 
+### Passing Test with Production Repair
+
+A `TEST_PASS` whose consistent final artifacts report `production_changed=true` proves the Test stage repaired production code after prior Code Review. It does not authorize Retrospective or Committer.
+
+```text
+TEST_PASS + production_changed=true + repair_round < 3
+  → preserve the Test artifacts as repair evidence
+  → increment the outer repair round
+  → invalidate prior final Code Review/Test completion in coordinator state
+  → clear stale stage_result before re-entry
+  → invoke prizmkit-code-review review_scope=delta
+  → require a fresh prizmkit-test result
+
+fresh TEST_PASS + production_changed=false
+  → prizmkit-retrospective
+
+TEST_PASS + production_changed=true + repair_round >= 3
+  → WORKFLOW_BLOCKED
+```
+
+On re-entry, retain only stages that remain authoritative before Code Review in `completed_stages`, set `repair_scope=production`, and set the next/resume entry to delta Code Review without inventing a new atomic result. Repeated Test production repairs consume the same existing outer repair budget; they do not create an unbounded success loop.
+
 ### Test Non-Pass
 
 `prizmkit-test` already performs bounded test construction, execution-failure repair, mandatory Main-Agent review, and optional independent review before returning. The composite consumes its terminal artifacts without recreating those loops.
@@ -136,15 +163,16 @@ The Main-Agent review skill owns its internal review repairs and its internal te
 ```text
 TEST_NEEDS_FIXES
   → preserve test-report.md and test-result.json
-  → stop with the known remaining correction or delta-review requirement
-  → caller owns any later review/retest decision
+  → when the outer repair budget remains, supply the exact correction to prizmkit-implement
+  → require fresh prizmkit-code-review and prizmkit-test results
+  → otherwise stop with WORKFLOW_BLOCKED
 
 TEST_BLOCKED
   → preserve test-report.md and test-result.json
   → stop with the unresolved truth, input, safety, environment, or reliability blocker
 ```
 
-The composite must not invoke implementation or Code Review automatically from inside the returned testing result unless its own explicitly authorized outer policy defines a new invocation. It must never treat either result as an AI CLI crash.
+The composite's bounded outer repair policy owns that fresh invocation route; it does not recreate the testing-local repair loop. It must never treat either non-pass result as an AI CLI crash.
 
 ### Environment Block
 
@@ -159,7 +187,7 @@ TEST_BLOCKED
   → stop with a deterministic prizmkit-test resume entry
 ```
 
-A trusted headless host performs its own bounded automatic environment recovery when invoking atomic stages. It does not invoke this composite workflow or silently turn a blocked result into success.
+An external headless runtime may perform its own bounded environment recovery when invoking atomic stages. It does not invoke this interactive composite workflow or silently turn a blocked result into success.
 
 ### Repair Limit
 
@@ -179,19 +207,19 @@ When the limit is reached:
 
 The internal `prizmkit-code-review` limit of ten completed review rounds remains separate and does not increment `repair_round`.
 
-## Commit Authorization Boundary
+## Interactive Commit Boundary
 
-The composite may automatically reach `/prizmkit-committer`, but it must not silently create a Git commit.
+The composite reaches `/prizmkit-committer operation=interactive-commit` but must not silently create a Git commit.
 
-Interactive execution requires the committer to:
+The composite must validate all prior stage artifacts, derive exact non-`.prizmkit/` source-change paths for retrospective input, and validate its result. It then assembles one exact interactive `intended_paths` manifest from every final Git-visible requirement output, regardless of whether a justified path is under `.prizmkit/**`. Ignored paths remain naturally absent. Prizm documentation has no separate commit-ownership or retrospective-evidence admission rule.
 
-1. verify all five preceding stage results for the same `artifact_dir`;
-2. inspect the final workspace;
-3. present intended files, diff summary, sensitive-file warnings, and the proposed Conventional Commit message;
-4. wait for explicit user confirmation from the current user;
-5. create and verify the local commit only after confirmation.
+`.prizmkit/**` remains the framework capability boundary and ordinary Code Review black box, but project Git tracking is independent. The composite must not force-add a framework path, modify or interpret ignore policy, broadly stage, or reject a Git-visible intended path solely by directory name. Exact Runtime request/checkpoint/state and installed Runtime/host payloads remain outside the manifest because of their semantic support/bookkeeping role, not a blanket framework-directory rule. Global Secret checks apply equally to every intended path.
 
-Trusted headless execution is a separate atomic-stage path. It requires a host-defined non-interactive `mode`, a trusted `owner` identifier, and `local_commit_authorized=true`; it does not ask or wait. Unknown headless contexts are blocked. Remote publication is a separate host-runtime operation and is never decided by this composite workflow.
+For each explicit host/platform support path, select and execute its applicable semantic contract before invoking Committer: instruction files require readable structure, resolvable project references, consistency with the exact requirement and applicable project conventions, and Secret scanning; lockfiles require parse/schema checks plus owning-installer or deterministic-regeneration parity; any other support class requires an exact project-native semantic validator named by the spec/plan. User confirmation alone is not support validation. A path is not host support merely because it is under `.prizmkit/**`.
+
+Invoke Committer with the same `artifact_dir`, exact `evidence_paths`, exact caller-state/bookkeeping paths in `excluded_paths`, exact `intended_paths`, conditional one-to-one host `support_validation_evidence`, and `operation=interactive-commit`. Committer validates the exact manifest and staged-set equality, presents it, waits for confirmation, and creates it only after approval.
+
+External headless orchestration supplies explicit readiness evidence to `operation=prepare-runtime-commit`, maps `COMMIT_REQUEST_READY` to its own pending state, and lets Python Runtime validate and execute the request. Safe Git-visible `.prizmkit/**` task output may appear in Runtime `intended_paths`; exact Runtime bookkeeping/support, Secrets, unrelated paths, and ignored paths do not. Remote publication remains separate.
 
 ## Automatic Handoff and Manual Fallback
 
@@ -206,7 +234,7 @@ When it does not:
 ```text
 Next stage: /prizmkit-<skill>
 artifact_dir: <same resolved artifact_dir>
-workflow_state: .prizmkit/state/workflows/<requirement-slug>.json
+workflow_state: .prizmkit/state/workflows/<requirement-identity>.json
 ```
 
 The user can invoke that one atomic skill and this composite can resume with `resume` later.
@@ -242,7 +270,7 @@ push: not performed automatically
 next_action: invoke /prizmkit-deploy separately if deployment is needed
 ```
 
-If the user declines interactive commit confirmation, report `status=in_progress`, `stage_result=COMMIT_PENDING` rather than `WORKFLOW_COMPLETE` and provide the exact `/prizmkit-committer` resume entry.
+If the user declines interactive commit confirmation, preserve the committer stage as pending or in progress without a workflow `stage_result`, report the atomic operation result `COMMIT_DECLINED`, and provide the exact `/prizmkit-committer operation=interactive-commit` resume entry. `COMMIT_PENDING` is reserved for a validated Runtime commit request and must not represent an interactive decline.
 
 If blocked, report:
 

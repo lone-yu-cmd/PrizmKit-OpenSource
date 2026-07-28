@@ -1,225 +1,215 @@
 ---
 name: "prizmkit-deploy"
-description: "Universal deployment gateway for PrizmKit projects. Discovers project type and deployment target, then routes to SSH Linux automation, cloud platform guidance, Docker guidance, or documented fallback. Also operates existing deployments: status, logs, restart, rollback, health, history, and validate. Use whenever the user asks to deploy, host, go live, release, take live, check deployment status, view logs, restart, rollback, or troubleshoot server operations. If the user says only 'ship it', clarify whether they mean commit or deploy before invoking. (project)"
+description: "Capability-driven deployment and online-operations gateway for arbitrary projects and targets. Discovers project-native evidence and real tool capabilities, classifies semantic deployment capabilities as verified, dynamic, manual, or unsupported, then compiles a risk-gated plan or collaborates at human checkpoints. Handles deploy, status, health, bounded logs, restart, rollback, history, validate, diagnose, takeover, and interrupted-session resume without promising unattended automation. If the user says only 'ship it', clarify commit versus deploy first. (project)"
 ---
 
-# PrizmKit Deploy — Universal Deployment Gateway
+# PrizmKit Deploy — Capability-Driven Gateway
 
-`/prizmkit-deploy` is the deployment and operations entry point. It discovers what is being deployed, where it should run, and which adapter or fallback applies.
+`/prizmkit-deploy` assesses and collaborates on deployment and online operations for the current project. It does not route by language, framework, controller, provider, tool, or operating-system name. Those names are evidence only.
 
-Possible outcomes:
+**Universal means truthful assessment and collaboration, not guaranteed unattended automation.** A target can require login, MFA, browser approval, a manual action, or a capability the current environment cannot perform.
 
-1. **Full automation** — SSH Linux server for supported Node.js apps using PM2 + Nginx blue/green.
-2. **Guided setup** — cloud platforms or Docker where user CLI/account steps are required.
-3. **Documented fallback** — unsupported project/target combinations get deploy documentation and an adapter-gap record.
+## Scope
 
-### When to Use
-- User says "deploy", "go live", "take this live", "release", "deploy to Vercel", "deploy to my server"
-- User wants deploy status, logs, restart, rollback, health checks, history, or validation
-- First-time deployment configuration or existing deployment repair/takeover
-- Any deployment, hosting, or server operation question
+Use this Skill for:
 
-### When NOT to Use
-- User says only "ship it" — clarify commit vs deploy first
-- Local development startup — use project dev scripts or `/run`
-- Pure CI test failure unrelated to deployment
-- User wants application code changes — use `/prizmkit-plan` and `/prizmkit-implement`
+- deploy and release requests;
+- status, health, bounded logs, restart, stop, rollback, and history;
+- configuration validation, diagnostics, and existing-deployment takeover;
+- authentication checkpoints and interruption recovery related to the current deployment.
 
-## Data Safety Gate
+Do not use it for unrelated application implementation, general server administration, or resources outside the current project and its necessary deployment dependencies. Assume one operator. Make no concurrent-write or locking guarantee.
 
-Before executing any command that could irreversibly destroy, overwrite, or modify data, pause and get explicit user confirmation.
+If the request is only “ship it,” clarify commit versus deployment. In a non-interactive run where that ambiguity cannot be resolved, return `BLOCKED`; never guess.
 
-Danger signals:
+## Semantic Protocol
 
-| Category | Examples | Action |
-|---|---|---|
-| Database reset/loss | `prisma migrate reset`, `DROP TABLE`, `TRUNCATE`, broad `DELETE`/`UPDATE` | Explain data loss and require clear yes/no confirmation |
-| File/system overwrite | `rm -rf`, writes under `/etc/`, overwriting existing config without backup | Confirm and back up when applicable |
-| Cloud/resource deletion | `terraform destroy`, `kubectl delete`, bucket/resource deletion | Confirm exact resources and impact |
-| Production traffic switch | first production deploy, rollback, Nginx upstream change | Confirm target environment and rollback plan |
-
-If a destructive data operation is detected in headless mode, refuse with `DATA_SAFETY_DENIED`; unattended pipelines must not destroy data.
-
-Read `${SKILL_DIR}/references/data-safety-examples.md` when concrete examples are needed.
-
-## Discovery
-
-Before deploying, discover project and target.
-
-### Project Detection
-
-Scan build/package files and classify:
-
-| Signal | Classification |
-|---|---|
-| `package.json` with `next` | Next.js |
-| `package.json` with `vite` | Vite frontend |
-| generic `package.json` | Node.js |
-| `requirements.txt` / `pyproject.toml` | Python |
-| `go.mod` | Go |
-| `Cargo.toml` | Rust |
-| `Dockerfile` | Docker image |
-| `docker-compose.yml` | Docker Compose |
-
-Also detect:
-- environment variables referenced in source
-- ports/listen calls
-- database dependencies
-- existing deployment config at `.prizmkit/deploy/deploy.config.json`
-
-### Target Detection
-
-Priority:
-
-1. User-specified target: Vercel, own server, Docker, etc.
-2. Existing config: `.prizmkit/deploy/deploy.config.json`
-3. Project files: `vercel.json`, `netlify.toml`, `fly.toml`, `Dockerfile`, `docker-compose.yml`, GitHub deploy workflow, `app.yaml`, `serverless.yml`
-4. Interactive question: ask where the project should be deployed
-5. Headless with missing target: exit `NEEDS_INPUT` and write pending questions to `.prizmkit/deploy/pending-input.json`
-
-## Adapter Routing
-
-| Target | Route | Reference |
-|---|---|---|
-| SSH Linux server + Node.js project | Full automation | `references/ssh-adapter-flow.md` |
-| Vercel / Netlify / Fly.io | Guided CLI setup | `references/cloud-platform-deploy.md` |
-| Docker / Docker Compose | Guided build/run | `references/docker-deploy.md` |
-| Unsupported target or project type | Documented fallback | §Unsupported Fallback |
-
-Compatibility check before SSH: the full SSH adapter currently requires a Node.js project with `package.json`. Non-Node Linux server targets route to Unsupported Fallback with an adapter-gap note.
-
-## Mode Detection
-
-Interactive mode:
-- May ask questions and request approvals.
-- May deploy to dev, test, or production.
-- Production requires explicit confirmation before execution.
-
-Headless mode:
-- Never wait for user input.
-- May target only dev or test environments.
-- Reject production with `ENVIRONMENT_DENIED`.
-- If required info is missing, exit `NEEDS_INPUT` and write `.prizmkit/deploy/pending-input.json`.
-- Perform only actions already authorized by `deploy.config.json`.
-
-## Command Routing
-
-Determine intent from the first word after `/prizmkit-deploy`:
+The capability vocabulary is:
 
 ```text
-/prizmkit-deploy                    -> deploy if config exists, otherwise configure
-/prizmkit-deploy configure          -> first-run or repair configuration wizard
-/prizmkit-deploy deploy             -> full deployment pipeline
-/prizmkit-deploy status             -> show runtime and active release status
-/prizmkit-deploy logs --app <id>    -> show recent logs
-/prizmkit-deploy restart --app <id> -> restart active app process and health check
-/prizmkit-deploy rollback --app <id> [--to <releaseId>] -> rollback
-/prizmkit-deploy health --app <id>  -> run health checks
-/prizmkit-deploy history            -> list deploy history
-/prizmkit-deploy validate           -> validate config and target without deploying
+discover, connect, authenticate, build, package, transfer, configure, migrate,
+release, start, stop, restart, rollback, status, health, logs, history, validate,
+diagnose, takeover
 ```
 
-No-arg behavior:
-- If config is missing, start configuration.
-- If config exists and validates, show deployment summary and ask for environment.
-- If config exists but is incomplete or stale, enter repair flow.
+Every applicable capability is `verified`, `dynamic`, `manual`, or `unsupported` and has evidence, preconditions, inputs, effects, risk, confirmation, execution, verification, and failure recovery. Read `${SKILL_DIR}/references/capability-contract.md` before classifying capabilities or deriving a plan.
 
-## Artifact Structure
-
-All deployment artifacts live under `.prizmkit/deploy/`:
+Operation set:
 
 ```text
-.prizmkit/deploy/
-  deploy.md
-  deploy.config.json
-  pending-input.json
-  deploy-history/
-  deploy-scripts/
-  secrets.enc.json
-  secrets.local.json
+deploy, status, health, logs, stop, restart, rollback, history, validate,
+diagnose, takeover, resume, cancel
 ```
 
-Read `references/deploy-config-schema.md` when writing or validating config. Read `references/deploy-history-schema.md` when writing history records.
+Authentication, login, MFA, browser approval, and other user actions are checkpoints inside an operation, not target routes.
 
-Reference index:
-- `references/ssh-adapter-flow.md` — load when routing to SSH Linux full automation.
-- `references/deployment-modes.md` — load when the user needs push/pull/direct-upload comparison.
-- `references/ssh-bootstrap-flow.md`, `references/firewall-setup.md`, `references/database-setup.md` — load during SSH bootstrap branches.
-- `references/direct-upload.md`, `references/ci-cd-workflows.md` — load for strategy-specific setup.
-- `references/dns-setup.md`, `references/ssl-setup.md` — load for domain and HTTPS setup.
-- `references/ssh-execution-flow.md`, `references/nginx-blue-green.md`, `references/ssh-takeover.md` — load for deploy execution, traffic switching, rollback, or takeover.
-- `references/cloud-platform-deploy.md`, `references/docker-deploy.md` — load for non-SSH guided routes.
-- `references/live-validation-notes.md` — load when troubleshooting bootstrap or deploy failures.
+## Managed Artifact Boundary
 
-Never record raw secret values in config, docs, or history. Secret presence metadata is allowed; raw values and unsalted hashes are not.
+Prefer existing project-native deployment configuration. PrizmKit owns at most these two new artifacts:
 
-## SSH Automation Route
+| Identity | Role | Write rule |
+|---|---|---|
+| `.prizmkit/deploy/deploy.json` | Sole local non-sensitive deployment record | Validate with `${SKILL_DIR}/references/deploy-record-schema.json` plus the semantic validator; atomically replace only after the applicable plan confirmation |
+| `prizmkit.deploy.json` | Optional version-controlled non-sensitive declaration | Create or modify only after showing an exact complete file preview and receiving explicit confirmation; validate with `${SKILL_DIR}/references/deployment-declaration-schema.json` plus the semantic validator |
 
-When routing to SSH Linux full automation, read `${SKILL_DIR}/references/ssh-adapter-flow.md` first. That reference coordinates the detailed SSH sub-procedures:
+Do not create a PrizmKit state, config, template, document, script, pending-input file, metadata file, or history file per language, framework, target, capability, phase, release, or event. Do not create local Secret storage. Secret values stay in user- or target-owned Secret systems; the local record and optional declaration store references and presence only.
 
-- deployment mode selection and first-run wizard
-- server model and directory layout
-- bootstrap and privileged action safety
-- direct upload vs CI/CD push vs CI/CD pull
-- DNS and SSL guidance
-- PM2 + Nginx blue/green execution
-- rollback and operations commands
-- secrets and multi-app coordination
+The optional declaration is advisory evidence. It never proves that a tool is installed, authentication is current, the target is authorized, a command is safe, or deployment is approved.
 
-Key invariants:
-- Present privileged bootstrap plans before execution.
-- Back up existing config before modification.
-- Run `nginx -t` before reload.
-- Do not switch traffic until staged health checks pass.
-- If failure happens before traffic switch, leave the live version unchanged.
-- Preserve failed releases/logs for debugging.
+### Managed Artifact Validation
 
-## Cloud and Docker Routes
+Before trusting an existing managed artifact or accepting a complete write candidate, require both schema validation and semantic validation:
 
-Cloud platforms:
-- Read `references/cloud-platform-deploy.md`.
-- Detect required CLI/account steps.
-- Generate or update deploy documentation and config.
-- Guide the user through interactive login or dashboard steps when needed.
+1. validate the complete object with its matching Draft 2020-12 schema;
+2. run `python3 ${SKILL_DIR}/scripts/validate-deploy-artifact.py --kind <record|declaration> <path>` against the exact regular file without following a symlink;
+3. require exit zero and exactly `{"valid":true,"errors":[]}` before using managed fields or replacing/confirming the artifact;
+4. on failure, retain the original/candidate evidence, report only bounded error codes and JSON paths, and return `BLOCKED` before execution or `FAILED` after a confirmed live write as applicable.
 
-Docker:
-- Read `references/docker-deploy.md`.
-- Detect Dockerfile/Compose configuration.
-- Build/run/validate with explicit environment and volume handling.
-- For destructive volume or database operations, apply the Data Safety Gate.
+The shipped script is a read-only semantic companion, not a schema replacement. It checks duplicate keys, canonical project-relative paths, profile identity/references, the exact verification-layer set, success consistency, and forbidden sensitive/raw-output field shapes without displaying values. If either validation capability is unavailable, do not guess, drop unknown data, or accept the managed artifact.
 
-## Unsupported Fallback
+### Sole-Record Update Policy
 
-When no adapter covers the detected target/project type:
+For every confirmed `deploy.json` write:
 
-1. Detect what you can: language, framework, build/start commands, env vars, port usage, databases.
-2. Generate `.prizmkit/deploy/deploy.md` with prerequisites, env vars, build/start instructions, health checks, and manual steps.
-3. Record adapter gap in deploy history: missing adapter, detected project type, target, fallback output.
-4. Offer to generate basic CI/CD config when applicable.
+1. read and validate the existing record without following a symlink or dropping unknown data;
+2. build one complete candidate, preserving fields not intentionally changed by the confirmed plan;
+3. update `current` only from verified live/release/health/rollback evidence, set the complete `latest_result`, append one concise redacted `history` summary, retain only the newest 50 summaries, and set or clear minimal `recovery` according to the terminal state;
+4. reject Secret-like values, raw command output, full logs, duplicate profile identities, and dangling profile references;
+5. write the complete candidate to a temporary regular file in the same directory, run its schema and semantic validations, close it, atomically replace the record, then read back and repeat both validations against exact content;
+6. if replacement or read-back validation fails, return `FAILED`, report target-live/local-record-stale when applicable, and rediscover target state before any repair.
 
-## Validation
+Trimming the bounded new-record history is part of this disclosed update policy; it never deletes or alters legacy evidence. This atomic replacement contract assumes one operator and makes no concurrent-write claim.
 
-Before production deploy, validate:
+When an existing `.prizmkit/deploy/` directory contains legacy artifacts, read `${SKILL_DIR}/references/legacy-migration.md` before any managed write. Preserve uncertain evidence and stop all legacy write patterns.
 
-- target connectivity
-- required tools
-- repository or artifact availability
-- port availability
-- required environment variables
-- process manager/runtime config
-- Nginx syntax when applicable
-- health check routes
-- rollback readiness
+## Workflow
 
-Persist validation results in `deploy.config.json` under the relevant `validated` fields.
+### 1. Normalize Intent and Boundary
 
-## Output
+1. Resolve one operation from the operation set.
+2. Bind the current project root and requested target/profile. Reject traversal into unrelated projects or infrastructure.
+3. Separate read-only discovery from possible writes.
+4. For a real-resource test request, stop ordinary flow and apply `${SKILL_DIR}/references/real-resource-test-policy.md`.
+5. If `deploy.json` exists, run its schema and semantic validations before using any field. Unknown schema versions, malformed objects, unsafe paths/references, incomplete terminal evidence, or Secret-like values block managed writes; do not “repair” by dropping unknown data.
 
-Report:
-- detected project and target
-- selected adapter or fallback
-- environment and deploy strategy
-- actions performed
-- validation/health results
-- deploy history record path
-- next recommended action
+No-argument behavior: assess a deploy if target evidence exists; otherwise perform read-only discovery and return `WAITING_USER` with the missing non-secret target decision. A no-argument invocation is not plan confirmation.
+
+### 2. Discover Evidence Read-Only
+
+Read only what is needed:
+
+- project-native manifests, build/release/runtime configuration, health definitions, deployment files, and source references needed to identify commands and ports;
+- the sole local record and optional declaration, if present and valid;
+- target facts supplied by the user or observed through proven read-only inspection;
+- installed-tool version/help/capability output and current authentication identity, using non-mutating probes;
+- official documentation for the detected language, framework, target, and tool versions when dynamic derivation is needed.
+
+Record evidence origin, observation, freshness, and whether it was read directly or user-supplied. A filename or target label alone is not proof. Respect actual connection and service ports; never substitute a conventional or fixed port.
+
+Do not expose Secret values discovered in files, command output, environment, URLs, headers, or logs. Retain only a Secret name/reference and presence state.
+
+### 3. Build the Capability Matrix
+
+Use the capability contract to classify every capability required by the operation:
+
+- prefer a verified recipe only when its complete evidence fingerprint still matches;
+- otherwise derive a dynamic plan only from current project evidence, real installed-tool capability, and official documentation;
+- use `manual` when a human must act, and state the exact action plus revalidation;
+- use `unsupported` when evidence or executable capability is absent, and report the gap and safe alternatives.
+
+Dynamic is not a weaker safety mode. Dynamic, verified, and mixed plans pass the same policy and confirmation gates. Never turn guidance copied from memory or an unofficial example into executable evidence.
+
+### 4. Choose Read-Only Execution or Compile a Plan
+
+Read-only, project-scoped discovery, status, health, bounded logs, history, validation, and diagnostics may execute directly when every selected command is proven read-only. Report their evidence without mutating the target or local record.
+
+A diagnostic command that may write, restart, install, repair, rotate, prune, migrate, or change authentication is not read-only and must enter the plan.
+
+For deploy or any mutating operation, read `${SKILL_DIR}/references/policy-and-execution.md` and compile the complete immutable plan. Every step must contain:
+
+```text
+capability, availability, evidence, preconditions, inputs, effects, risk,
+confirmation, execution, verification, failure_handling, idempotency, retry,
+unknown_outcome_inspection
+```
+
+Bind the plan to project root, target identity, release input, ordered steps, command arguments/actions, effects, and risk. Show the complete plan before requesting confirmation. A request to deploy is not itself confirmation of the compiled plan; silence, an old approval, or approval of a different plan is not confirmation.
+
+### 5. Apply Confirmation Policy
+
+- **Direct:** proven read-only, project-scoped actions.
+- **Complete-plan confirmation:** ordinary reversible writes, including the planned atomic local-record update.
+- **Dedicated confirmation:** project/source file creation or modification; privileged/global or compatibility-sensitive install/upgrade; destructive or irreversible migration; shared infrastructure; plan expansion; replay after an unknown write outcome; or deployment without reliable rollback.
+
+A missing rollback mechanism does not automatically block deployment. Continue only after an exact dedicated risk-acceptance confirmation that identifies live-state risk and manual recovery. Store the fact and scope of confirmation, never credentials or unrelated conversation.
+
+Any changed target, command, argument, input, effect, scope, evidence assumption, or risk invalidates confirmation. Compile and preview a new plan.
+
+### 6. Execute with Progress and Human Checkpoints
+
+Execute the confirmed plan in order. Before each step, recheck preconditions and confirmation validity. Report the capability, step state, and bounded evidence; do not promise a universal duration.
+
+- Never silently install, upgrade, overwrite, delete, expand scope, or replay a write.
+- Only proven read-only or idempotent operations may use the plan's bounded retry.
+- On timeout/disconnect after a possible write, mark the outcome unknown and inspect before replay.
+- Analyze every database migration for reversibility, locking/downtime, data impact, backup/restore evidence, sequencing, and recovery conditions.
+- Bound logs by time and/or line count and redact before display or persistence.
+
+For login, MFA, browser approval, or manual action:
+
+1. stop before dependent execution;
+2. report `WAITING_USER` and the exact non-secret action;
+3. store only the plan digest, last proven step, minimal confirmation receipts, pending checkpoint, and bounded observations in `deploy.json` when that write was confirmed;
+4. after the user acts, revalidate target identity, authentication/authorization, capability evidence, and the expected postcondition;
+5. resume only if the immutable plan still matches; otherwise compile a new plan.
+
+`cancel` stops future steps, performs only already-confirmed safe cleanup, records residual resources, and returns `CANCELLED`.
+
+### 7. Verify, Recover, and Report
+
+Read `${SKILL_DIR}/references/verification-and-recovery.md` before deciding an outcome. Check every applicable layer:
+
+1. command or target-control result;
+2. process, service, container, or release state;
+3. configured health boundary;
+4. external URL;
+5. bounded startup logs.
+
+Each layer is `PASSED`, `FAILED`, `INACCESSIBLE`, or `NOT_APPLICABLE`. Inaccessible and inapplicable are not passes. A required failed or inaccessible layer prevents `SUCCEEDED`; command exit alone is never sufficient.
+
+On failure or interruption, observe current state before action. Offer rollback only when the rollback mechanism and target release are verified. Without verified rollback, report live state, residual resources, and manual recovery explicitly.
+
+Terminal status is exactly one of:
+
+```text
+SUCCEEDED, FAILED, BLOCKED, WAITING_USER, CANCELLED
+```
+
+## Secret and Output Rules
+
+Before display or persistence, redact credentials in URLs, authorization headers, tokens, keys, cookies, connection strings, environment assignments, and user-identified sensitive patterns. Prefer omission over masking when context is unnecessary. Do not persist raw command output or full logs.
+
+The final result includes:
+
+- terminal status and operation;
+- target/profile and live state;
+- release identity, if established;
+- rollback availability;
+- every verification layer and evidence boundary;
+- residual resources and partial effects;
+- local-record update result;
+- recovery guidance and relevant next operations.
+
+If the live change succeeded but a required health check or local-record update failed, return `FAILED` and describe the actual live state. Never label partial completion as success.
+
+## Reference Loading
+
+Load only what the current operation needs:
+
+- capability assessment or dynamic derivation → `${SKILL_DIR}/references/capability-contract.md`
+- local record read/write → `${SKILL_DIR}/references/deploy-record-schema.json` and `${SKILL_DIR}/scripts/validate-deploy-artifact.py`
+- optional declaration preview/write → `${SKILL_DIR}/references/deployment-declaration-schema.json` and `${SKILL_DIR}/scripts/validate-deploy-artifact.py`
+- first use with legacy evidence → `${SKILL_DIR}/references/legacy-migration.md`
+- any mutating plan → `${SKILL_DIR}/references/policy-and-execution.md`
+- verification, failure, rollback, interruption, or resume → `${SKILL_DIR}/references/verification-and-recovery.md`
+- any proposed external-resource test → `${SKILL_DIR}/references/real-resource-test-policy.md`

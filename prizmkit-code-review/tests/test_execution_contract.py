@@ -18,6 +18,27 @@ class ExecutionContractTests(unittest.TestCase):
             encoding="utf-8"
         )
 
+    def test_report_renderer_is_the_canonical_executable_writer(self):
+        for phrase in [
+            "## Report Renderer Contract",
+            "scripts/render_review_report.py",
+            "render_review_report.py init",
+            "render_review_report.py append",
+            "render_review_report.py finalize",
+            "renderer fallback",
+        ]:
+            self.assertIn(phrase, self.skill)
+
+    def test_default_scope_excludes_prizmkit_and_generated_support(self):
+        for phrase in [
+            "## Default Correctness Scope",
+            "Every `.prizmkit/**` path is excluded by default",
+            "AGENTS.md",
+            "scope-classification",
+            "exact default-excluded changed paths",
+        ]:
+            self.assertIn(phrase, self.skill)
+
     def test_main_agent_owns_the_bounded_review_and_repair_loop(self):
         required = [
             "Main-Agent Review Loop",
@@ -49,8 +70,8 @@ class ExecutionContractTests(unittest.TestCase):
             "git status --short",
             "staged diff",
             "unstaged diff",
-            "untracked, deleted, and renamed files",
-            "Do not reread `spec.md`, `plan.md`",
+            "untracked, deleted, and renamed paths",
+            "Reuse current context and load only missing or potentially stale material",
             "Inspect unchanged callers, dependents, contracts, or tests only when",
             "reproducible failure scenario",
         ]
@@ -104,7 +125,7 @@ class ExecutionContractTests(unittest.TestCase):
             "staged and unstaged tracked changes",
             "untracked, deleted, and renamed content",
             "concrete coupling",
-            "Reviewer may use structurally read-only checkout access",
+            "It may use structurally read-only checkout access",
             "REVIEW_BLOCKED",
         ]
         for phrase in required:
@@ -165,7 +186,7 @@ class ExecutionContractTests(unittest.TestCase):
 
     def test_report_rebuilds_per_execution_then_appends_progress(self):
         required = [
-            "replace any prior report",
+            "initialize a replacement report",
             "append",
             "## Final Result",
             "exactly one final result",
@@ -194,30 +215,25 @@ class ExecutionContractTests(unittest.TestCase):
             "Verdict: <PASS | NEEDS_FIXES | BLOCKED>", self.report_template
         )
 
-    def test_review_precedes_full_test_and_pass_hands_off_to_test(self):
-        required = [
-            "before the full test stage",
-            "project-native tests run against the final reviewed workspace",
-            '"status": "completed"',
-            '"stage_result": "REVIEW_PASS"',
-            '"next_stage": "test"',
-            '"resume_from": "prizmkit-test"',
-            "REVIEW_PASS\n  → /prizmkit-test",
-        ]
-        for phrase in required:
+    def test_review_is_stage_local_and_returns_domain_verdict_only(self):
+        for phrase in [
+            "returns `PASS` or `NEEDS_FIXES` and stops",
+            "Do not invoke another Skill",
+            "Return only the listed review outputs",
+        ]:
             self.assertIn(phrase, self.skill)
-
-    def test_review_needs_fixes_routes_to_implementation(self):
-        required = [
-            '"status": "failed"',
-            '"stage_result": "REVIEW_NEEDS_FIXES"',
-            '"repair_scope": "production"',
-            '"next_stage": "implement"',
-            '"resume_from": "prizmkit-implement"',
-            "at most three repair rounds",
-        ]
-        for phrase in required:
-            self.assertIn(phrase, self.skill)
+        for forbidden in [
+            "workflow-state.json",
+            "workflow-checkpoint.json",
+            "next_stage",
+            "resume_from",
+            "completed_stages",
+            "REVIEW_PASS",
+            "REVIEW_NEEDS_FIXES",
+            "prizmkit-test",
+            "prizmkit-implement",
+        ]:
+            self.assertNotIn(forbidden, self.skill)
 
     def test_no_platform_role_or_obsolete_execution_protocol_is_required(self):
         self.assertTrue(self.independent_review_path.exists())

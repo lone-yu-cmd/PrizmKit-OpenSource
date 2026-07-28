@@ -1,11 +1,11 @@
 ---
 name: "prizmkit-plan"
-description: "Start the formal PrizmKit requirement lifecycle by turning a natural-language change into spec.md and plan.md artifacts, running mandatory Main-Agent planning review plus optional capability-gated independent correctness review, initializing workflow state, and handing off to prizmkit-implement. Works for features, bug fixes, refactors, migrations, tests, and other formal requirements. (project)"
+description: "Create and review spec.md and plan.md artifacts for one supplied software requirement. Covers features, bug fixes, refactors, migrations, tests, and other scoped changes; returns PLAN_READY or PLAN_BLOCKED. (project)"
 ---
 
 # PrizmKit Plan
 
-`/prizmkit-plan` is the entry point for one formal requirement. It converts a natural-language change into a reviewed change artifact: `spec.md` defines WHAT and WHY; `plan.md` defines HOW and executable tasks.
+`/prizmkit-plan` converts one caller-supplied natural-language change into a reviewed change artifact: `spec.md` defines WHAT and WHY; `plan.md` defines HOW and executable tasks.
 
 A change artifact can describe a feature, bug fix, refactor, migration, test improvement, or another scoped requirement.
 
@@ -19,47 +19,34 @@ A change artifact can describe a feature, bug fix, refactor, migration, test imp
 ## When NOT to Use
 
 - Direct edit: typo, pure formatting, small documentation edit, or another explicitly low-risk non-requirement change.
-- The active artifact directory already has an adequate reviewed `spec.md` and `plan.md`; resume from the workflow state instead.
-
-## Formal Lifecycle
-
-A successful plan starts this fixed lifecycle:
-
-```text
-plan → implement → code-review → test → retrospective → committer
-```
-
-Planning depth may be concise or comprehensive, but no later formal lifecycle stage may be silently skipped.
+- The supplied artifact directory already has an adequate reviewed `spec.md` and `plan.md`; return the existing stage result instead of regenerating them.
 
 ## Input
 
 | Parameter | Required | Description |
 |---|---|---|
 | `description` | Yes | Natural-language description of the requirement. |
-| `artifact_dir` | No | Directory for the change artifact. If omitted, create a numbered slug under `.prizmkit/specs/`. |
+| `artifact_dir` | No | Exact caller-supplied directory for the change artifact. If omitted, create a deterministic numbered directory under `.prizmkit/specs/` using `${SKILL_DIR}/references/artifact-identity.md`. |
 
 ## Atomic Stage Boundary
 
-`prizmkit-plan` owns only specification, plan, task generation, and planning-quality review. It writes its truthful terminal result and `next_stage`, then returns control. It must not invoke `prizmkit-implement` itself, including when an external orchestrator is active. The active orchestrator owns the next-stage invocation.
+`prizmkit-plan` owns specification, plan, task generation, and planning-quality review for one supplied requirement. Its terminal outputs are `PLAN_READY` or `PLAN_BLOCKED`; it stops after producing that result.
 
 ## Phase 0: Initialization Check and Context
 
 1. Check whether project context such as `.prizmkit/prizm-docs/root.prizm`, `.prizmkit/config.json`, or a project brief exists.
-2. If initialization context is missing:
-   - recommend `/prizmkit-init` and explain that it improves project context and cross-session continuity;
-   - do not block planning;
-   - if the user continues, load the README, manifests, project instruction files, source structure, and relevant source files as fallback.
-3. If Prizm docs exist, read `root.prizm`, relevant L1 docs, relevant L2 docs when present, and source fallback when L2 is absent.
-4. Resolve `artifact_dir` once and reuse it for every later lifecycle handoff. Do not re-detect another artifact during the same requirement.
+2. If initialization context is missing, do not block planning; load the README, manifests, project instruction files, source structure, and relevant source files as fallback.
+3. If Prizm docs exist, read `root.prizm`, follow only its relevant module/detail pointers, and use source fallback when detailed documentation is absent.
+4. Read `${SKILL_DIR}/references/artifact-identity.md`, validate or generate `artifact_dir` exactly once, and keep it stable throughout this planning invocation.
 
 ## Phase 1: Specify (`spec.md`)
 
 Skip regeneration when `spec.md` already exists and still matches the requested requirement.
 
 1. Gather the requirement description. If it is missing in an interactive run, ask the user; otherwise return a clear blocked result.
-2. Determine the artifact directory:
-   - use the caller-provided `artifact_dir` when present;
-   - otherwise scan `.prizmkit/specs/` for existing numbered directories and create `.prizmkit/specs/###-task-slug/`.
+2. Determine the artifact directory through `${SKILL_DIR}/references/artifact-identity.md`:
+   - validate and preserve the exact caller-provided `artifact_dir` when present;
+   - otherwise derive the normalized title slug, allocate the next collision-safe number, and create `.prizmkit/specs/<number>-<slug>/`.
 3. Generate `spec.md` from `${SKILL_DIR}/assets/spec-template.md`:
    - focus on WHAT and WHY, not HOW;
    - include only relevant sections;
@@ -86,7 +73,7 @@ Precondition: `spec.md` exists with no unresolved blocker.
    - component and file changes;
    - data migration approach when relevant;
    - interface/API contract design when relevant;
-   - test strategy for the mandatory `/prizmkit-test` stage;
+   - project-native test strategy appropriate to the requirement;
    - risks and mitigations;
    - behavior-preservation strategy for refactors.
 5. Cross-check every spec goal against the plan.
@@ -96,10 +83,11 @@ Precondition: `spec.md` exists with no unresolved blocker.
 
 1. Choose an MVP-first, incremental, or safe parallel task strategy.
 2. Append `## Tasks` to `plan.md` using `${SKILL_DIR}/assets/plan-template.md`.
-3. Include setup, foundation, core, polish, and checkpoint tasks only when applicable.
-4. Mark `[P]` only for tasks that can safely execute independently.
-5. Include implementation-local verification where useful, while preserving the later full code-review and test stages.
-6. Run `${SKILL_DIR}/references/verification-checklist.md` and repair plan defects.
+3. Include setup, foundation, core, and polish phases only when applicable; do not manufacture empty phases for a small plan.
+4. Every formal plan must contain at least one concrete risk with mitigation and at least one verification checkpoint. A small plan may use one final checkpoint instead of artificial phase checkpoints.
+5. Mark `[P]` only for tasks that can safely execute independently.
+6. Include appropriate implementation-local and regression verification tasks without executing them during planning.
+7. Run `${SKILL_DIR}/references/verification-checklist.md` and repair plan defects.
 
 ## Phase 4: Plan/Spec Review Loop
 
@@ -113,7 +101,7 @@ Run every time `spec.md` or `plan.md` is created or changed. This is the mandato
 6. If a `BLOCKER` remains, ask targeted questions in interactive mode; otherwise record `PLAN_BLOCKED` and stop.
 7. Continue only when no unresolved blocker remains.
 
-The planning review must not implement code, run the full test stage, or launch external orchestration.
+The planning review must not modify product/source code or execute the planned verification strategy.
 
 ## Phase 5: Independent Plan Review
 
@@ -127,47 +115,17 @@ Run only after the Main-Agent Plan/Spec review converges. This optional check ne
 6. If neither compliant continuation nor replacement is available after modification, record downgrade and rerun the Main-Agent local Plan/Spec review over that modification as specified by the reference.
 7. If the final allowed response causes a modification, run targeted verification, record that the final state was not independently rechecked, and do not exceed the response budget.
 8. Append the terminal `## Independent Plan Review` record. Appending that audit record does not trigger another response.
-9. Any unresolved correction produces `PLAN_BLOCKED`; otherwise independent convergence or strict downgrade may continue to handoff from the valid completed Main-Agent review.
-
-## Phase 6: Workflow State and Handoff
-
-Read `${SKILL_DIR}/references/workflow-state-protocol.md` and create or update:
-
-```text
-.prizmkit/state/workflows/<requirement-slug>.json
-```
-
-Follow the bundled protocol. At minimum record:
-
-```json
-{
-  "schema_version": 1,
-  "artifact_dir": ".prizmkit/specs/001-example",
-  "stage": "plan",
-  "status": "completed",
-  "stage_result": "PLAN_READY",
-  "completed_stages": ["plan"],
-  "repair_round": 0,
-  "repair_scope": null,
-  "next_stage": "implement",
-  "resume_from": "prizmkit-implement"
-}
-```
-
-The state file is runtime metadata. Do not change the target project's Git or ignore policy.
+9. Any unresolved correction produces `PLAN_BLOCKED`; otherwise independent convergence or strict downgrade produces `PLAN_READY`.
 
 ## Output
 
-- `spec.md` and `plan.md` in the resolved artifact directory.
-- Workflow state with `PLAN_READY` or a truthful blocked result.
-- Planning depth, key decisions, task count, and checkpoint summary.
-- The same `artifact_dir` for every downstream stage.
+Return only planning-stage outputs:
 
-## Handoff
+- the resolved `artifact_dir`;
+- `spec.md` and `plan.md` paths;
+- planning depth, key decisions, and task count;
+- `PLAN_READY` when artifacts pass planning review, otherwise `PLAN_BLOCKED` with unresolved planning blockers.
 
-On `PLAN_READY`:
-
-1. If workflow state names an active `orchestrator`, return `PLAN_READY`, `stage_result=PLAN_READY`, `next_stage=implement`, the state path, and the same `artifact_dir` to that orchestrator; do not invoke the next stage independently.
-2. For direct stage use with no active orchestrator, report exactly one deterministic next action: `/prizmkit-implement`, with `stage_result=PLAN_READY`, the state-file path, and `artifact_dir`; a host may perform that semantic handoff on the user's behalf.
+Return only the listed planning outputs. Do not invoke another Skill.
 
 Read `${SKILL_DIR}/references/examples.md` only when a worked planning example is needed.

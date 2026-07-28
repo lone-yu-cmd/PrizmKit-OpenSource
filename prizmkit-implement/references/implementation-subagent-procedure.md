@@ -29,8 +29,8 @@ Do not create worktrees, copied repositories, remote checkouts, or branch switch
 1. Read `context-snapshot.md` first when it exists.
 2. Use Section 3 for relevant Prizm rules/traps and Section 4 File Manifest for file summaries.
 3. Do not re-read files already summarized in the File Manifest unless a specific implementation detail is missing.
-4. If no context snapshot exists, read `.prizmkit/prizm-docs/root.prizm`, relevant L1/L2 docs, then targeted source files.
-5. If a relevant L2 doc is missing, use source fallback and note that retrospective may create or update docs later.
+4. If no context snapshot exists, read `.prizmkit/prizm-docs/root.prizm`, follow only relevant module/detail pointers, then read targeted source files.
+5. If relevant detail documentation is missing, use source fallback and note the missing context without creating documentation.
 
 ## Implementation Rules
 
@@ -41,7 +41,7 @@ Do not create worktrees, copied repositories, remote checkouts, or branch switch
 - Do not execute git `add`, `commit`, `reset`, `push`, branch checkout, rebase, merge, or stash operations.
 - Do not spawn further agents.
 - Do not perform broad repository rediscovery. Read only delegated files and targeted dependencies needed for correctness.
-- Do not write PrizmKit feature/bug/refactor/task/session/run IDs, pipeline IDs, workflow IDs, branch names, absolute worktree paths, or `.prizmkit/specs` / `.prizmkit/dev-pipeline` artifact paths into `.prizmkit/prizm-docs/`, user-visible UI text, API responses, emails, notifications, or expected product-copy tests.
+- Do not write internal execution IDs, branch names, absolute worktree paths, or runtime artifact paths into `.prizmkit/prizm-docs/`, user-visible UI text, API responses, emails, notifications, or expected product-copy tests.
 - If creating a new sub-module, note the durable facts needed for retrospective; do not overwrite existing `.prizmkit/prizm-docs/` files in full.
 
 ## Output Format
@@ -61,7 +61,7 @@ Report exactly:
 - command/check: result
 
 ### Notes for Main Agent
-- durable decisions, missing L2 docs, or blockers
+- durable decisions, missing detail documentation, or blockers
 ```
 
 For `WRONG_CHECKOUT`, include only the checkout mismatch evidence and do not include normal implementation findings.

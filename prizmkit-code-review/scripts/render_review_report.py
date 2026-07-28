@@ -11,6 +11,7 @@ from typing import Any
 
 VERDICTS = {"PASS", "NEEDS_FIXES"}
 EVENTS = {
+    "scope-classification",
     "main-review-round",
     "repair-verification",
     "independent-review-round",
@@ -25,6 +26,8 @@ REVIEWER_RESULTS = {
 }
 ADJUDICATION_DECISIONS = {"accepted", "rejected", "unresolved"}
 RECHECK_STATES = {"yes", "no", "not applicable"}
+ROUND_CONTINUATION_MODES = {"native", "replacement"}
+DOWNGRADE_CONTINUATION_MODES = {"native", "replacement", "mixed", "not-applicable"}
 FINAL_HEADING = "## Final Result"
 
 
@@ -52,6 +55,25 @@ def _require_count(data: dict[str, Any], name: str, *, maximum: int | None = Non
     if maximum is not None and value > maximum:
         raise ReportStateError(f"{name} cannot exceed {maximum}")
     return value
+
+
+def _require_text_list(data: dict[str, Any], name: str) -> list[str]:
+    value = data.get(name)
+    if not isinstance(value, list):
+        raise ReportStateError(f"{name} must be an array of strings")
+    normalized: list[str] = []
+    for item in value:
+        if not isinstance(item, str) or not item.strip():
+            raise ReportStateError(f"{name} must contain only non-empty strings")
+        text = item.strip()
+        if text in normalized:
+            raise ReportStateError(f"{name} must not contain duplicates")
+        normalized.append(text)
+    return normalized
+
+
+def _render_path_list(paths: list[str]) -> list[str]:
+    return [f"  - {path}" for path in paths] if paths else ["  - None."]
 
 
 def _report_text(path: Path) -> str:
@@ -90,6 +112,20 @@ def _render_event(data: dict[str, Any]) -> str:
     event = data.get("event")
     if event not in EVENTS:
         raise ReportStateError(f"event has invalid value: {event!r}")
+
+    if event == "scope-classification":
+        in_scope = _require_text_list(data, "in_scope_paths")
+        excluded = _require_text_list(data, "excluded_paths")
+        return "\n".join(
+            [
+                "## Review Scope",
+                "",
+                "- In-Scope Paths:",
+                *_render_path_list(in_scope),
+                "- Default-Excluded Changed Paths:",
+                *_render_path_list(excluded),
+            ]
+        )
 
     if event == "main-review-round":
         round_number = _require_count(data, "round", maximum=10)
@@ -131,6 +167,15 @@ def _render_event(data: dict[str, Any]) -> str:
         response = _require_count(data, "response", maximum=5)
         if response < 1:
             raise ReportStateError("response must be at least 1")
+        capability_basis = _require_text(data, "capability_basis")
+        continuation_mode = _require_text(data, "continuation_mode")
+        if continuation_mode not in ROUND_CONTINUATION_MODES:
+            raise ReportStateError(
+                f"continuation_mode has invalid value: {continuation_mode!r}"
+            )
+        reviewer_replacements = _require_count(
+            data, "reviewer_replacements", maximum=1
+        )
         result = _require_text(data, "result")
         if result not in REVIEWER_RESULTS:
             raise ReportStateError(f"result has invalid value: {result!r}")
@@ -156,6 +201,10 @@ def _render_event(data: dict[str, Any]) -> str:
             [
                 f"## Independent Review Round {response}",
                 "",
+                "- Capability Gate: ENABLED",
+                f"- Capability Basis: {capability_basis}",
+                f"- Continuation Mode: {continuation_mode}",
+                f"- Reviewer Replacements: {reviewer_replacements}",
                 f"- Result: {result}",
                 f"- Corrections: {corrections}",
                 f"- Accepted: {accepted}",
@@ -181,6 +230,15 @@ def _render_event(data: dict[str, Any]) -> str:
         )
 
     if event == "independent-review-downgrade":
+        capability_basis = _require_text(data, "capability_basis")
+        continuation_mode = _require_text(data, "continuation_mode")
+        if continuation_mode not in DOWNGRADE_CONTINUATION_MODES:
+            raise ReportStateError(
+                f"continuation_mode has invalid value: {continuation_mode!r}"
+            )
+        reviewer_replacements = _require_count(
+            data, "reviewer_replacements", maximum=1
+        )
         rechecked = _require_text(data, "final_state_independently_rechecked")
         if rechecked not in RECHECK_STATES:
             raise ReportStateError(
@@ -192,6 +250,9 @@ def _render_event(data: dict[str, Any]) -> str:
                 "## Independent Review Downgrade",
                 "",
                 f"- Reason: {_require_text(data, 'reason')}",
+                f"- Capability Basis: {capability_basis}",
+                f"- Continuation Mode: {continuation_mode}",
+                f"- Reviewer Replacements: {reviewer_replacements}",
                 f"- Fallback: {_require_text(data, 'fallback')}",
                 f"- Final State Independently Rechecked: {rechecked}",
             ]

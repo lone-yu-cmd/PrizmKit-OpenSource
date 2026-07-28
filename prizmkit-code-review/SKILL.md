@@ -1,60 +1,77 @@
 ---
 name: "prizmkit-code-review"
-description: "Review the complete current change for a formal PrizmKit requirement with a mandatory bounded Main-Agent loop and optional capability-gated independent correctness review. Directly repair accepted corrections, verify repairs, converge to PASS or stop with NEEDS_FIXES, and hand off to prizmkit-test. (project)"
+description: "Review one supplied complete change with a bounded Main-Agent review/repair loop and optional capability-gated independent correctness review. Produces review-report.md and returns PASS or NEEDS_FIXES. (project)"
 ---
 
 # PrizmKit Code Review
 
-`/prizmkit-code-review` is the mandatory review stage after implementation and before the full test stage. The current Main Agent owns the complete baseline review loop: it discovers findings, adjudicates them, directly repairs accepted findings, verifies repairs, and continues until the review converges or stops safely. After convergence, one strictly capability-gated independent Reviewer may objectively check the complete current implementation without taking mutation or final-decision authority.
+`/prizmkit-code-review` reviews one caller-supplied complete change. The current Main Agent owns the complete baseline review loop: it discovers findings, adjudicates them, directly repairs accepted findings, verifies repairs, and continues until the review converges or stops safely. After convergence, one strictly capability-gated independent Reviewer may objectively check the complete current implementation without taking mutation or final-decision authority.
 
 ## Execution Boundary
 
 - Main-Agent review remains mandatory and must not be delegated directly or indirectly.
 - After Main-Agent convergence only, this skill may create the single independent Reviewer defined by `${SKILL_DIR}/references/independent-code-review.md` when every structural capability in that reference is proven.
-- Do not invoke another review skill or review workflow from inside this skill.
+- Do not invoke another review process from inside this skill.
 - Do not launch any additional review work through a general-purpose execution unit or relabel it as a finder, verifier, audit, compatibility review, verification, or gap sweep.
 - The independent Reviewer cannot mutate, execute arbitrary commands, or create downstream execution units; prompt instructions never substitute for these structural guarantees.
 - The Main Agent may directly read, search, edit, and run targeted verification in the active workspace.
-- Review repairs occur before the full `/prizmkit-test` stage so project-native tests run against the final reviewed workspace.
+- Review repairs use targeted verification appropriate to each accepted finding.
 - `{artifact_dir}/review-report.md` is the only persisted review artifact for this execution.
+
+## Report Renderer Contract
+
+Use `${SKILL_DIR}/scripts/render_review_report.py` as the canonical executable writer for report initialization, validated progress append, and finalization:
+
+```text
+resolved Python 3 interpreter + render_review_report.py init <report>
+resolved Python 3 interpreter + render_review_report.py append <report>  ← validated event JSON on standard input
+resolved Python 3 interpreter + render_review_report.py finalize <report> ← validated final JSON on standard input
+```
+
+Resolve a compatible Python 3 interpreter through the current Host's executable capability; do not require one operating-system-specific command name. If no compatible interpreter is available, follow `${SKILL_DIR}/references/review-report-template.md` directly, record the renderer fallback in Final Verification evidence, and apply every equivalent count, ordering, field, and terminal-shape check before returning a verdict. Never silently omit renderer-owned fields or claim executable validation occurred during fallback.
 
 ## Atomic Stage Boundary
 
-`prizmkit-code-review` owns the complete mandatory Main-Agent review, the optional independent correctness review, accepted-correction repairs, and review verification. It writes its truthful terminal result and `next_stage`, then returns control. It must not invoke `prizmkit-test` or `prizmkit-implement` itself; the active orchestrator owns outer repair routing and the next-stage invocation.
+`prizmkit-code-review` owns the complete review, accepted-correction repairs, targeted verification, and `review-report.md` for one supplied change. It returns `PASS` or `NEEDS_FIXES` and stops.
 
 ## When to Use
 
-- After `/prizmkit-implement` reports `IMPLEMENTED`.
-- After implementation repairs that changed production code, runtime configuration, schema, dependencies, or public interfaces.
-- When a caller routes a high-risk production repair reported by `prizmkit-test` back for delta review.
-- When the user asks for a complete review or commit readiness decision.
+- A caller supplies a complete implementation for review.
+- A caller supplies a production-affecting repair for delta review.
+- The user asks for a complete current-change correctness review.
 
 ## When NOT to Use
 
 - No valid `spec.md` and `plan.md` exist for the active requirement.
 - Implementation tasks or required repair work remain incomplete.
-- A test-stage environment stop is caused by availability rather than a review concern; resume from test when the environment is available.
-- The request is a direct low-risk edit outside the formal requirement lifecycle.
+- The request has no review input and does not require this bounded review contract.
 
-## Input and State
+## Input
 
 | Parameter | Required | Description |
 |---|---|---|
-| `artifact_dir` | No | Directory containing `spec.md` and `plan.md`. Reuse the caller's directory or workflow-state value. |
+| `artifact_dir` | Yes | Caller-supplied directory containing the exact `spec.md` and `plan.md` for this review. |
 | `review_scope` | No | `full` for the initial review; `delta` for a production-affecting repair after a prior review pass. |
 
-Every invocation must reuse the same `artifact_dir`. If workflow state is missing, reconstruct it from `spec.md`, `plan.md`, `review-report.md`, the current diff, and any current test report/result pair, and report the reconstruction.
+Review only the caller-supplied `artifact_dir`; never discover a different recent artifact. Missing or inconsistent stage input produces `NEEDS_FIXES` with the exact input blocker.
+
+## Default Correctness Scope
+
+The current requirement change outside `.prizmkit/**` is the ordinary correctness scope. Every `.prizmkit/**` path is excluded by default from correctness review, including correctness diffs, candidate findings, repairs, and verification scope. The Skill may read only exact caller-supplied `.prizmkit` artifacts such as `spec.md` and `plan.md` as evidence for the outside-framework requirement and may write its own `review-report.md`; it must not assess, report findings against, or repair their content. Neither action makes `.prizmkit` content reviewable production change. Correctness review of any framework/support artifact requires a separate explicit support-artifact review contract naming the exact artifacts and validator.
+
+Generated host-support paths are also excluded by default, including `AGENTS.md`, `skills-lock.json`, installed platform directories, and local platform settings. An explicitly owned support change requires a separate explicit support-artifact validation contract; do not pull it into ordinary Code Review through workspace expansion. Record excluded changed paths in the report so exclusion is visible rather than mistaken for reviewed content.
 
 ## Phase 0: Initialize Report and Reuse Current Context
 
 1. Resolve `{artifact_dir}` and `{artifact_dir}/review-report.md` from the active requirement context.
-2. At the start of each execution, replace any prior report with a new execution header using `${SKILL_DIR}/references/review-report-template.md`.
-3. Within that execution, append progress after every review round, repair batch, final verification, and exactly one `## Final Result`.
-4. Start from the Main Agent's current requirement context and inspect the complete workspace change first: `git status --short`, the staged diff, and the unstaged diff. Include untracked, deleted, and renamed files in the review scope.
-5. Do not reread `spec.md`, `plan.md`, project rules, progressive docs, or unchanged source merely to recreate context the Main Agent already holds. Load only the missing or potentially stale material required to resolve a concrete ambiguity, verify an acceptance criterion, understand a changed contract, or reconstruct missing workflow state.
-6. Inspect unchanged callers, dependents, contracts, or tests only when the diff changes or may violate an interface, shared behavior, or regression boundary. Do not perform an unconditional repository-wide dependency sweep.
-7. For `review_scope=delta`, focus on files and behavior affected since the prior review pass and expand only across contracts implicated by that delta.
-8. If no changes exist, record final verification and `PASS` only when the current requirement context and prior implementation state prove there is nothing left to review.
+2. At the start of each execution, initialize a replacement report through the Report Renderer Contract and `${SKILL_DIR}/references/review-report-template.md`.
+3. Within that execution, append every review round, repair batch, independent-review event, final verification, and exactly one `## Final Result` through the renderer or its visible equivalent fallback.
+4. Start from the Main Agent's current requirement context and inspect the complete workspace inventory first: `git status --short`, the staged diff, and the unstaged diff. Include untracked, deleted, and renamed paths in classification, then remove default-excluded `.prizmkit/**` and host-support paths from the correctness scope before producing findings.
+5. Append one validated `scope-classification` renderer event containing exact in-scope paths and exact default-excluded changed paths; do not describe exclusions as reviewed or silently repair them.
+6. Reuse current context and load only missing or potentially stale material required to resolve a concrete ambiguity, verify an acceptance criterion, or understand a changed contract.
+7. Inspect unchanged callers, dependents, contracts, or tests only when the in-scope diff changes or may violate an interface, shared behavior, or regression boundary. Do not perform an unconditional repository-wide dependency sweep.
+8. For `review_scope=delta`, focus on in-scope files and behavior affected since the prior review pass and expand only across contracts implicated by that delta.
+9. If no in-scope changes exist, record final verification and `PASS` only when the current requirement context and prior implementation state prove there is nothing left to review.
 
 ## Phase 1: Main-Agent Review Loop
 
@@ -79,7 +96,7 @@ For every candidate finding:
    - `unresolved`: correctness or safe repair cannot be established.
 3. Treat Missing tools, permissions, environment, or required evidence as an unresolved finding when they prevent review verification.
 4. If a repair cannot be completed safely, record an unresolved finding and return `NEEDS_FIXES`.
-5. Append the review round to `review-report.md`.
+5. Append the validated review-round event through the Report Renderer Contract.
 
 Round behavior:
 
@@ -107,9 +124,9 @@ For accepted findings while the round limit remains:
 1. Repair directly in the active workspace.
 2. Run targeted tests, static checks, or other verification appropriate to each repair.
 3. Inspect the complete resulting diff for unrelated changes and regressions.
-4. Append repair verification and continue the review loop.
+4. Append validated repair-verification evidence through the Report Renderer Contract and continue the review loop.
 
-Do not run the full auditable testing protocol as a substitute for this review stage. The full testing stage follows only after review `PASS`.
+Do not turn review verification into a broad unrelated test campaign; use targeted checks that establish each repair.
 
 If a repair is unsafe, incomplete, or unverifiable, record an unresolved finding and finish with `NEEDS_FIXES`.
 
@@ -133,7 +150,7 @@ Before completing:
 
 1. Confirm the final workspace is the complete reviewed change.
 2. Confirm all accepted findings are fixed and no unresolved finding remains for `PASS`.
-3. Append final verification and exactly one final result.
+3. Append final verification and exactly one final result through the Report Renderer Contract or its visibly recorded equivalent fallback.
 
 Valid results:
 
@@ -141,49 +158,15 @@ Valid results:
 PASS | NEEDS_FIXES
 ```
 
-`PASS` requires review convergence, no unresolved findings, and credible targeted verification. `NEEDS_FIXES` means an outer implementation repair is required or completion must stop safely.
+`PASS` requires review convergence, no unresolved findings, and credible targeted verification. `NEEDS_FIXES` means a concrete correction remains or safe completion was not established.
 
-## Workflow State and Outer Repair Routing
+## Output
 
-Before reading or updating workflow state, read `${SKILL_DIR}/references/workflow-state-protocol.md`.
+Return only review-stage outputs:
 
-On `PASS`, update workflow state:
+- `artifact_dir` and `review-report.md` path;
+- `PASS` when review converged with all accepted findings repaired;
+- `NEEDS_FIXES` when accepted or unresolved findings remain;
+- finding counts, repair verification, and concrete remaining findings.
 
-```json
-{
-  "stage": "code-review",
-  "status": "completed",
-  "stage_result": "REVIEW_PASS",
-  "completed_stages": ["plan", "implement", "code-review"],
-  "next_stage": "test",
-  "resume_from": "prizmkit-test"
-}
-```
-
-On `NEEDS_FIXES` caused by code findings, update workflow state:
-
-```json
-{
-  "stage": "code-review",
-  "status": "failed",
-  "stage_result": "REVIEW_NEEDS_FIXES",
-  "repair_scope": "production",
-  "next_stage": "implement",
-  "resume_from": "prizmkit-implement"
-}
-```
-
-Increment the outer `repair_round` only when returning to implementation; the review-internal ten-round loop never increments it. The outer workflow permits at most three repair rounds and must return a truthful unresolved `NEEDS_FIXES` result instead of beginning a fourth.
-
-## Handoff
-
-After `PASS`:
-
-```text
-REVIEW_PASS
-  → /prizmkit-test
-```
-
-If workflow state names an active `orchestrator`, return `REVIEW_PASS`, the report/state paths, and `next_stage=test` to it; do not invoke test independently. For direct stage use, report the exact `/prizmkit-test` invocation and same `artifact_dir`; a host may perform that semantic handoff on the user's behalf.
-
-After `NEEDS_FIXES`, stop and hand off to `/prizmkit-implement`; do not test or commit the unrepaired production change.
+Return only the listed review outputs. Do not invoke another Skill.

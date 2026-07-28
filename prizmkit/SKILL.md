@@ -18,7 +18,7 @@ description: "PrizmKit framework introduction and lifecycle navigator. Explains 
 ## When NOT to Use
 
 - User already knows the required skill; invoke that skill directly.
-- A formal requirement is already in progress; continue from its workflow state and current stage.
+- A formal requirement is already in progress; continue through its owning coordinator or current atomic stage.
 - User wants an immediate low-risk direct edit; perform the edit and its specific verification.
 
 ## Responsibility Map
@@ -57,7 +57,7 @@ prizmkit-plan
   → prizmkit-committer
 ```
 
-The lifecycle starts at `/prizmkit-plan`. For a one-entry experience, invoke `/prizmkit-workflow` with the requirement; it coordinates the same stages without replacing their responsibilities. When the host supports skill-to-skill handoff, the stages continue automatically. Otherwise, each stage writes the next semantic skill and the workflow state provides the deterministic resume context.
+For a one-entry experience, invoke `/prizmkit-workflow`; it owns ordering, state, repair routing, and stage invocation without replacing stage responsibilities. Atomic Skills receive explicit stage-local input, return stage-local results, and never read or write the coordinator's state. External injected Prompts may provide the same orchestration around atomic Skills.
 
 All six stages are required for a formal requirement. A stage may choose a verification depth appropriate to the change, but it may not be silently skipped.
 
@@ -67,14 +67,14 @@ Typos, pure formatting, small documentation edits, and other explicitly low-risk
 
 ### Stage Responsibilities
 
-| Stage | Responsibility | Success handoff |
+| Stage | Responsibility | Stage-local success |
 |---|---|---|
-| `prizmkit-plan` | Clarify the requirement and create/review `spec.md` and `plan.md`. | `status=completed`, `stage_result=PLAN_READY` → `prizmkit-implement` |
-| `prizmkit-implement` | Execute the plan tasks and record completion. | `status=completed`, `stage_result=IMPLEMENTED` → `prizmkit-code-review` |
-| `prizmkit-code-review` | Main Agent reviews, repairs, verifies, and loops until convergence. | `status=completed`, `stage_result=REVIEW_PASS` → `prizmkit-test` |
-| `prizmkit-test` | Validate the final reviewed workspace with project-native tests and a consistent terminal report/result pair. | `status=completed`, `stage_result=TEST_PASS` → `prizmkit-retrospective` |
-| `prizmkit-retrospective` | Synchronize durable project documentation or record no documentation change. | `status=completed`, `stage_result=RETRO_COMPLETE` → `prizmkit-committer` |
-| `prizmkit-committer` | Verify gates, request commit confirmation, and create the local commit. | `status=completed`, `stage_result=COMMITTED` |
+| `prizmkit-plan` | Clarify the requirement and create/review `spec.md` and `plan.md`. | `PLAN_READY` |
+| `prizmkit-implement` | Execute supplied plan tasks and record completion. | `IMPLEMENTED` |
+| `prizmkit-code-review` | Review, repair, verify, and converge on the supplied change. | `PASS` |
+| `prizmkit-test` | Test the supplied change with a consistent report/result pair. | `TEST_PASS` |
+| `prizmkit-retrospective` | Synchronize durable documentation or record no change. | `RETRO_COMPLETE` |
+| `prizmkit-committer` | Create a confirmed interactive commit or prepare an exact Runtime request. | `COMMITTED` or `COMMIT_REQUEST_READY` |
 
 ### `prizmkit-workflow`
 
@@ -86,9 +86,8 @@ Use for a one-entry formal requirement workflow. It coordinates all six lifecycl
 
 Initialization is a soft prerequisite, not a hard dependency:
 
-- If project initialization is missing, `/prizmkit-plan` recommends `/prizmkit-init`.
-- The user may continue without initialization.
-- Planning then reads the source tree, README, manifests, and available project rules as fallback context.
+- If project initialization is missing, the user may still invoke `/prizmkit-init` separately or continue without it.
+- Planning reads the source tree, README, manifests, and available project rules as fallback context.
 - Later documentation synchronization reports when the Prizm documentation system is not initialized instead of pretending that synchronization completed.
 
 ## Independent Skills
@@ -110,7 +109,7 @@ REVIEW_NEEDS_FIXES
 
 TEST_NEEDS_FIXES
   → preserve test-report.md and test-result.json
-  → stop with the known correction or delta-review requirement
+  → stop with the known correction
   → caller owns any later review/retest route
 
 TEST_BLOCKED
@@ -122,21 +121,9 @@ Automatic outer repair is limited to three rounds. The workflow stops with a res
 
 ## Commit and Deployment Boundary
 
-`prizmkit-committer` must not create a commit until the preceding five formal stages have succeeded. Before creating the local commit, it presents the intended files, diff summary, and Conventional Commit message and waits for user confirmation.
+The active coordinator validates all required evidence before invoking `prizmkit-committer` with exact `evidence_paths` and any caller-state `excluded_paths`. Interactive use confirms and creates a local commit. Preparation use returns `COMMIT_REQUEST_READY` without Git mutation; the injected Prompt records its pending state and Python Runtime executes the request.
 
 Pushing to a remote is a separate explicit action. Deployment is always a separate invocation of `/prizmkit-deploy`.
-
-## Workflow State
-
-An active requirement may use:
-
-```text
-.prizmkit/state/workflows/<requirement-slug>.json
-```
-
-This runtime state records the current stage, terminal status, repair scope, repair round, and resume entry. The skill set does not prescribe whether the target project commits, ignores, or shares this file.
-
-Read `${SKILL_DIR}/references/workflow-state-protocol.md` for the state protocol. If the state file is missing or stale, use `spec.md`, `plan.md`, the review report, `test-report.md`, and `test-result.json` to reconstruct the safest recoverable stage and report that reconstruction.
 
 ## Quick Start
 
@@ -152,19 +139,19 @@ Then:
 1. Optionally run /prizmkit-init when entering a project for the first time.
 2. Start a formal requirement with /prizmkit-plan.
 3. Continue through implement → code-review → test → retrospective → committer.
-4. Confirm the local commit when /prizmkit-committer presents it.
+4. For interactive use, confirm the local commit when `/prizmkit-committer operation=interactive-commit` presents it; pipeline runtimes use preparation mode and execute Git themselves.
 5. Invoke /prizmkit-deploy separately when deployment or operations work is needed.
 ```
 
 ## Scope Boundary
 
-This toolkit is self-contained: its skills describe only this toolkit's lifecycle and independent entry points. External systems may integrate through the published skill inputs, outputs, state, and authorization contracts, but their internal architecture and names are outside this toolkit's protocol.
+This toolkit is self-contained. External coordinators integrate through atomic stage inputs, stage-owned artifacts, and domain results; coordinator state and routing remain outside atomic Skill contracts.
 
 The toolkit does not promise universal automatic handoff, universal deployment automation, automatic remote push, or access beyond the host platform's permissions and environment.
 
 If the user says only "ship it", ask whether they mean:
 
-1. Commit the current changes with `/prizmkit-committer`.
+1. Use `/prizmkit-committer operation=interactive-commit` for a user-confirmed local commit, or preparation mode when a Python pipeline runtime owns Git execution.
 2. Deploy or operate the project with `/prizmkit-deploy`.
 
 Do not route an ambiguous "ship it" directly to either action.

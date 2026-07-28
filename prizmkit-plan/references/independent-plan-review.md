@@ -54,7 +54,7 @@ spec_path: [EXACT_SPEC_PATH]
 plan_path: [EXACT_PLAN_PATH]
 ```
 
-The paths come from the current workflow state or explicit handoff even when ignored by Git. Never ask the Reviewer to discover a latest artifact or guess among multiple `spec.md` and `plan.md` files.
+The caller supplies these exact paths as planning-stage input even when ignored by Git. Never ask the Reviewer to discover a latest artifact or guess among multiple `spec.md` and `plan.md` files.
 
 The Plan Reviewer receives only:
 
@@ -90,7 +90,7 @@ Execution boundaries:
 - Complete this review personally.
 - Do not create, schedule, resume, continue, request, or coordinate another execution unit.
 - Do not ask the Main Agent to create a helper.
-- Do not re-enter orchestration, delegation, another review workflow, or an equivalent process.
+- Do not re-enter delegation or another review process.
 - Do not modify, create, delete, rename, stage, commit, or otherwise mutate files.
 - Do not execute shell, Git, tests, builds, network calls, external processes, or any operation that can change state.
 - Read only the supplied planning input at the exact paths and contents identified above.
@@ -133,7 +133,7 @@ All initial execution boundaries and the Reviewer Output Protocol remain mandato
 
 ## Reviewer Output Protocol
 
-Return exactly one of these forms. Do not add severity, confidence, dimension, workflow impact, or acceptance fields.
+Return exactly one of these forms. Do not add severity, confidence, dimension, caller-routing impact, or acceptance fields.
 
 ### No Correction Needed
 
@@ -181,7 +181,7 @@ Every correction contains only `Target`, `Problem`, `Evidence`, and `Correction`
 No review verdict was produced.
 ```
 
-`REVIEW_BLOCKED` is an internal independent-review result, not a lifecycle result.
+`REVIEW_BLOCKED` is an internal independent-review result, not the planning-stage result.
 
 ## Main-Agent Adjudication
 

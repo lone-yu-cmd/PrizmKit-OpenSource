@@ -2,8 +2,8 @@
 
 Runs after tech stack merge in Update mode:
 
-1. **Module scan**: Re-scan project directories using the same TWO-TIER model from Step 1. Compare discovered modules against existing MODULE_INDEX in root.prizm.
-2. **Missing L1 check**: For any discovered module with no corresponding L1 `.prizm` doc → create L1 immediately and add to MODULE_INDEX.
-3. **Missing L2 check**: For any module/sub-module that has source files with meaningful logic but no L2 `.prizm` doc → create L2 using the L2 GENERATION TEMPLATE. Judgment call: skip trivial wrapper directories or single-config modules.
-4. **Stale L1 check**: For existing L1 docs, verify FILES count and KEY_FILES are still accurate. Update if source directory contents have changed significantly.
-5. **Report**: Include in the Update report: modules added, L1 docs created, L2 docs created, stale docs refreshed.
+1. **Bounded module scan**: Re-scan only the registered top-level source modules and concrete structural gaps using the same two-tier model. Exclude the complete `.prizmkit/` framework directory, including installed `.prizmkit/dev-pipeline/`, but do not exclude a repository's canonical top-level `dev-pipeline/` source module.
+2. **Missing L1 check**: For a discovered top-level module with no direct-child L1, build one complete Value-Gate-filtered structural candidate at `.prizmkit/prizm-docs/<M>.prizm` and add a resolving root pointer only after the candidate validates.
+3. **Missing L2 context**: For an affected source submodule with no nested L2, inspect only the bounded source files and narrowly implicated contracts needed to determine the gap. Do not create a placeholder. A complete L2 may be created only when current durable facts pass the Value Gate and mirrored/semantic identity, ownership, pointer, format, and capacity checks all pass.
+4. **Existing target reconciliation**: Read every complete affected target and complete resolving parent/child pointer document. Apply Cleanup by semantic meaning, preserve protected knowledge, build candidates bottom-up, skip byte-identical replacements, and re-read actual bytes after writes.
+5. **Failure and report**: If any post-write check fails, restore exact pre-write bytes and remove invalid new targets before reporting a blocker. Report modules/details added, skipped source fallbacks, stale summaries reconciled, and capacity/pointer validation. Never stage, commit, force-add, change or interpret `.gitignore`, require Git history, or classify tracking state as documentation health.
